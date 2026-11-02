@@ -1,0 +1,11 @@
+id,quantity,item,minimum_specification,procurement_state,notes
+CTRL-001,1,BeagleBone reference controller,McASP and USB high-speed device port,owner_reports_available,Exact board revision and usable pins require qualification
+DBG-001,1,USB to UART adapter,3.3 V TTL and 115200 baud,owner_reports_available,Console connection is separate from USB audio
+ADC-001,1,PCM1808 stereo audio ADC module,24-bit 96-kHz I2S with schematic and configurable compatible clocking,candidate_to_source,Use one input; qualify actual module revision and terminate unused input
+ANA-001,1,Line input conditioning assembly,ADC-specific coupling bias filtering protection and attenuation as needed,design_dependent,Exact resistor capacitor buffer and connector BOM follows module schematic
+SRC-001,1,Known analog source,Adjustable line-level tone or audio below qualified input full scale,inventory_unconfirmed,A signal generator or attenuated line output can avoid a new mic preamp
+CAB-001,1,USB data cable,Host connector to board device connector with data conductors,inventory_unconfirmed,BeagleBone Black uses mini-USB; confirm physical board
+PWR-001,1,Qualified power arrangement,Board and ADC supplies sized and grounded for actual configuration,inventory_unconfirmed,Document power budget and prevent backfeed
+WIRE-001,1,Short interconnect set,Compatible header sockets and common reference ground,inventory_unconfirmed,Minimize clock and analog wiring length
+MEDIA-001,1,Removable boot media,MicroSD compatible with the selected board and maintained image,conditional,Use when establishing a new baseline while preserving existing storage
+PRE-001,1,External microphone preamp,Defined analog line output compatible with ANA-001,optional_deferred,Not needed for a line-source first test
