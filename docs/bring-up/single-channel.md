@@ -4,6 +4,28 @@ The first analog result is a known external signal recorded on a Linux host
 through the BeagleBone's USB audio connection. A synthetic tone is a separate
 diagnostic result.
 
+## Initial configuration
+
+Use a computer headphone output playing a 1-kHz sine wave as the first analog
+source. Use one channel of an assembled, documented PCM1808 ADC board. Keep
+microphone preamp design and guitar input buffering outside this first test.
+
+1. Play the tone through a headphone output, starting with output volume low.
+2. Probe one output channel against its signal ground. Adjust for approximately
+   0.5 V peak-to-peak and confirm a clean 1-kHz waveform without clipping.
+3. Feed that channel into the ADC board's documented AC-coupled line input,
+   within the board's rated input range. Preserve the required ADC input bias;
+   this instruction does not authorize connecting to an unconditioned IC pin.
+4. Configure ADC-to-McASP capture and confirm the tone locally on the board.
+5. Forward capture through USB and record it in Audacity on the host.
+6. Stop/restart the source and change its frequency; verify the recorded
+   signal follows those changes.
+
+The 0.5-V peak-to-peak level is a conservative initial test setting, not a
+product full-scale specification. A headphone-derived signal is sufficient
+for routing verification; it is not a calibrated distortion/noise reference.
+Amplifier operating class is not an initial capture requirement.
+
 ## Connections
 
 ```text
