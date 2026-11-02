@@ -318,6 +318,13 @@ def main():
                 print('UART:', error)
             print('Yocto configured:', (LOCAL / 'build/conf/local.conf').exists())
             print('Build output:', LOCAL / 'build/tmp/deploy/images/beaglebone-yocto')
+            installation = LOCAL / 'install-status.json'
+            if installation.exists():
+                state = json.loads(installation.read_text())
+                print('Card installation:', state['stage'])
+                print(state['message'])
+                if state.get('next_action'):
+                    print('Next:', state['next_action'])
         elif args.action == 'install-cli':
             install_cli()
         elif args.action == 'fetch-image':

@@ -23,6 +23,7 @@ directory when ~/.local/bin is on PATH:
 | bbb ssh BOARD_IP | Log in over Ethernet at the address shown by board status. |
 | bbb deploy | Send the current audioctl script over SSH without flashing or rebooting. |
 | bbb build | Build the complete development image on the computer. |
+| bbb status | Show board/build information and any active card-installation status. |
 
 The UART adapter and USB device cable are separate connections. Use the small
 mini-USB device socket for the computer connection; the full-size USB-A socket
