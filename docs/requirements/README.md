@@ -84,6 +84,14 @@ of analog performance.
 
 ## Productization
 
+- FW-001: Maintain a pinned Yocto source baseline and product layer that builds
+  the kernel, bootloader and root filesystem for the selected BeagleBone.
+- FW-002: Provide documented UART login, key-based SSH access and a simple
+  board menu for status and the USB test tone. Keep private keys and local
+  provisioning configuration out of the public repository.
+- FW-003: Validate board boot, login and a board-generated USB tone before
+  selecting additional analog hardware. Retain source/build/kernel evidence
+  separately from hardware observations.
 - PRD-001: Maintain reproducible hardware sources, firmware configuration,
   build/install instructions, schematics, connector definitions, and a BOM
   with exact approved manufacturer parts or module revisions.

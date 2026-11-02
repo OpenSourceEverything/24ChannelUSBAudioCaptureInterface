@@ -1,0 +1,14 @@
+{
+  "poky": {
+    "url": "https://git.yoctoproject.org/poky",
+    "tag": "yocto-5.0.21",
+    "commit": "4fb7016a07507683359ebd620f1951fd5ea44bfa"
+  },
+  "bootstrap_image": {
+    "purpose": "Official reference image for initial board boot; not the custom audio image",
+    "filename": "core-image-minimal-beaglebone-yocto.rootfs-20261007153755.wic",
+    "url": "https://downloads.yoctoproject.org/releases/yocto/yocto-5.0.21/machines/beaglebone-yocto/core-image-minimal-beaglebone-yocto.rootfs-20261007153755.wic",
+    "download_url": "https://mirrors.kernel.org/yocto/yocto/yocto-5.0.21/machines/beaglebone-yocto/core-image-minimal-beaglebone-yocto.rootfs-20261007153755.wic",
+    "sha256": "4375c5e51ae726e0333cb295f70193d975d93830c20d0728e5b7993a6e9b48cf"
+  }
+}

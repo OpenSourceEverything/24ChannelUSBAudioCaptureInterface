@@ -12,6 +12,16 @@ Start with one analog channel recorded in Audacity or another Linux recording
 application. Establish the USB path with a generated tone separately, then
 validate the external ADC path before expanding to eight and 24 channels.
 
+## Start here
+
+Run ./device install-cli once, then type bbb to open the BeagleBone terminal.
+Press Enter; at a login
+prompt, enter root. See the [Yocto baseline and board controls](firmware/README.md)
+for the pinned build, first-boot image, SSH access and the on-board audio menu.
+Establish this firmware baseline and its USB tone before buying analog parts.
+
+## Product documents
+
 - [Product requirements](docs/requirements/README.md)
 - [Architecture and bandwidth constraints](docs/design/architecture.md)
 - [Single-channel integration procedure](docs/bring-up/single-channel.md)

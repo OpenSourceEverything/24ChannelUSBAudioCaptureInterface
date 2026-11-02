@@ -1,0 +1,74 @@
+#!/bin/sh
+set -eu
+
+usb_on() {
+    [ "$(id -u)" = 0 ] || { echo 'Log in as root to configure USB audio.'; exit 1; }
+    modprobe libcomposite
+    mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config
+    audio_gadget=/sys/kernel/config/usb_gadget/ose-audio
+    if [ -s "$audio_gadget/UDC" ] && [ -n "$(cat "$audio_gadget/UDC")" ]; then
+        echo 'USB audio is already configured.'
+        return
+    fi
+    mkdir -p "$audio_gadget"
+    echo 0x1d6b > "$audio_gadget/idVendor"
+    echo 0x0104 > "$audio_gadget/idProduct"
+    mkdir -p "$audio_gadget/strings/0x409"
+    cat /etc/machine-id > "$audio_gadget/strings/0x409/serialnumber"
+    echo OpenSourceEverything > "$audio_gadget/strings/0x409/manufacturer"
+    echo 'OSE Audio Bench' > "$audio_gadget/strings/0x409/product"
+    mkdir -p "$audio_gadget/configs/c.1/strings/0x409"
+    echo 'One-channel USB audio' > "$audio_gadget/configs/c.1/strings/0x409/configuration"
+    echo 500 > "$audio_gadget/configs/c.1/MaxPower"
+    mkdir -p "$audio_gadget/functions/uac2.usb0"
+    echo 1 > "$audio_gadget/functions/uac2.usb0/p_chmask"
+    echo 48000 > "$audio_gadget/functions/uac2.usb0/p_srate"
+    echo 2 > "$audio_gadget/functions/uac2.usb0/p_ssize"
+    echo 0 > "$audio_gadget/functions/uac2.usb0/c_chmask"
+    [ -L "$audio_gadget/configs/c.1/uac2.usb0" ] ||
+        ln -s "$audio_gadget/functions/uac2.usb0" "$audio_gadget/configs/c.1/uac2.usb0"
+    set -- /sys/class/udc/*
+    [ "$#" = 1 ] && [ -e "$1" ] || { echo 'Expected one USB device controller.'; exit 1; }
+    basename "$1" > "$audio_gadget/UDC"
+    echo 'USB audio is ready. Connect the board USB device port to the recording computer.'
+}
+
+status() {
+    uname -r
+    cat /etc/os-release
+    echo 'Audio devices:'
+    cat /proc/asound/cards 2>/dev/null || true
+    echo 'Network addresses:'
+    ip -f inet addr show
+    echo 'USB link:'
+    for audio_controller in /sys/class/udc/*; do
+        [ -d "$audio_controller" ] || continue
+        cat "$audio_controller/current_speed"
+    done
+}
+
+tone() {
+    audio_card=$(awk '/UAC2Gadget|UAC2_Gadget/ {print $1; exit}' /proc/asound/cards)
+    [ -n "$audio_card" ] || { echo 'Choose USB audio on first.'; exit 1; }
+    echo 'Sending a 1-kHz tone over USB. Stop with Ctrl+C.'
+    speaker-test -D "hw:$audio_card,0" -c 1 -r 48000 -F S16_LE -t sine -f 1000
+}
+
+case "${1:-menu}" in
+    status) status ;;
+    usb-on) usb_on ;;
+    tone) tone ;;
+    menu)
+        while :; do
+            printf '\n1 Board status\n2 USB audio on\n3 Send test tone\n0 Exit\nChoose: '
+            read -r audio_choice || exit 0
+            case "$audio_choice" in
+                1) status ;;
+                2) usb_on ;;
+                3) tone ;;
+                0) exit 0 ;;
+                *) echo 'Choose 1, 2, 3 or 0.' ;;
+            esac
+        done ;;
+    *) echo 'Usage: audioctl [status|usb-on|tone]'; exit 1 ;;
+esac
