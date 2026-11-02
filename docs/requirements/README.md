@@ -92,6 +92,10 @@ of analog performance.
 - FW-003: Validate board boot, login and a board-generated USB tone before
   selecting additional analog hardware. Retain source/build/kernel evidence
   separately from hardware observations.
+- FW-004: Provide a development workflow that writes the complete SD image
+  initially, then deploys ordinary application changes over SSH with the card
+  left in the board. Document package/dependency updates, reboot requirements
+  and recovery separately. Routine application work shall not require reflashing.
 - PRD-001: Maintain reproducible hardware sources, firmware configuration,
   build/install instructions, schematics, connector definitions, and a BOM
   with exact approved manufacturer parts or module revisions.

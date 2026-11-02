@@ -17,7 +17,9 @@ validate the external ADC path before expanding to eight and 24 channels.
 Run ./device install-cli once, then type bbb to open the BeagleBone terminal.
 Press Enter; at a login
 prompt, enter root. See the [Yocto baseline and board controls](firmware/README.md)
-for the pinned build, first-boot image, SSH access and the on-board audio menu.
+for the pinned build, initial SD installation, USB SSH access and the on-board
+audio menu. After installation, use bbb deploy to update the menu without
+removing the card.
 Establish this firmware baseline and its USB tone before buying analog parts.
 
 ## Product documents

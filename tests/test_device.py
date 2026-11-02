@@ -60,6 +60,50 @@ class DeviceBoundaries(unittest.TestCase):
         card = device.removable_card('/dev/card', self.card_inventory(), 1000)
         self.assertEqual(card['path'], '/dev/card')
 
+    def test_sd_reader_without_removable_flag_is_accepted(self):
+        inventory = self.card_inventory(removable=False)
+        inventory['blockdevices'][0]['path'] = '/dev/mmcblk0'
+        with patch.object(device.Path, 'read_text', return_value='SD\n'):
+            card = device.removable_card('/dev/mmcblk0', inventory, 1000)
+        self.assertEqual(card['path'], '/dev/mmcblk0')
+
+    def test_emmc_is_rejected_even_with_removable_flag(self):
+        inventory = self.card_inventory()
+        inventory['blockdevices'][0]['path'] = '/dev/mmcblk0'
+        with patch.object(device.Path, 'read_text', return_value='MMC\n'):
+            with self.assertRaisesRegex(RuntimeError, 'whole removable'):
+                device.removable_card('/dev/mmcblk0', inventory, 1000)
+
+    def test_unreadable_mmc_type_is_rejected(self):
+        inventory = self.card_inventory()
+        inventory['blockdevices'][0]['path'] = '/dev/mmcblk0'
+        with patch.object(device.Path, 'read_text', side_effect=OSError('unavailable')):
+            with self.assertRaisesRegex(RuntimeError, 'whole removable'):
+                device.removable_card('/dev/mmcblk0', inventory, 1000)
+
+    def test_remote_host_cannot_add_ssh_options_or_shell_commands(self):
+        for host in ['-oProxyCommand=bad', 'host;bad', 'root@host', 'host\nother', '$(bad)']:
+            with self.subTest(host=host), self.assertRaisesRegex(RuntimeError, 'board IP'):
+                device.ssh_command(host)
+
+    def test_development_flash_does_not_fall_back_to_reference_image(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.object(device, 'LOCAL', Path(folder)), patch.object(device, 'fetch_image') as fetch:
+                with self.assertRaisesRegex(RuntimeError, 'No completed development image'):
+                    device.flash('/dev/card')
+                fetch.assert_not_called()
+
+    def test_development_image_must_still_match_build_checksum(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            image = root / 'built.wic'
+            image.write_bytes(b'corrupt')
+            (root / 'image-ready.json').write_text(json.dumps({
+                'path': str(image), 'sha256': hashlib.sha256(b'original').hexdigest()}))
+            with patch.object(device, 'LOCAL', root):
+                with self.assertRaisesRegex(RuntimeError, 'checksum changed'):
+                    device.development_image()
+
     def test_multiple_adapters_need_an_explicit_choice(self):
         with patch.object(device.glob, 'glob', return_value=['/dev/one', '/dev/two']):
             with self.assertRaisesRegex(RuntimeError, 'Found 2'):

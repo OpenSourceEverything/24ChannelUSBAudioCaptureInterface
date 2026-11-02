@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -112,6 +113,7 @@ def setup(public_key=None):
         'PACKAGE_CLASSES = "package_ipk"\nINIT_MANAGER = "systemd"\n'
         'EXTRA_IMAGE_FEATURES = "empty-root-password"\n'
         'BB_NUMBER_THREADS = "2"\nPARALLEL_MAKE = "-j 2"\n'
+        'PRSERV_HOST = "localhost:0"\n'
         f'DL_DIR = "{LOCAL / "downloads"}"\n'
         f'SSTATE_DIR = "{LOCAL / "sstate-cache"}"\n'
         f'AUDIO_PROVISION_DIR = "{provision}"\n'
@@ -120,7 +122,7 @@ def setup(public_key=None):
     print('Next: ./device build')
 
 
-def build_image(sdk=False, parse=False):
+def yocto_command(target):
     checkout = LOCAL / 'poky'
     build = LOCAL / 'build'
     if not (build / 'conf/local.conf').exists():
@@ -129,17 +131,58 @@ def build_image(sdk=False, parse=False):
     environment['LANG'] = 'en_US.UTF-8'
     environment['LC_ALL'] = 'en_US.UTF-8'
     environment['PATH'] = str(LOCAL / 'host-tools/usr/bin') + os.pathsep + environment['PATH']
+    run(['bash', '-c', 'source "$1/oe-init-build-env" "$2" >/dev/null; shift 2; exec "$@"',
+         'yocto-build', str(checkout), str(build), *target], env=environment)
+
+
+def build_image(sdk=False, parse=False):
+    source_commit = subprocess.check_output(
+        ['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
+    source_dirty = bool(subprocess.check_output(
+        ['git', '-C', str(ROOT), 'status', '--porcelain'], text=True).strip())
     target = ['bitbake', '-p'] if parse else ['bitbake', 'ose-audio-image']
     if sdk:
         target += ['-c', 'populate_sdk']
-    run(['bash', '-c', 'source "$1/oe-init-build-env" "$2" >/dev/null; shift 2; exec "$@"',
-         'yocto-build', str(checkout), str(build), *target], env=environment)
+    yocto_command(target)
+    if not sdk and not parse:
+        output = LOCAL / 'build/tmp/deploy/images/beaglebone-yocto'
+        candidates = {p.resolve() for p in output.glob('ose-audio-image-beaglebone-yocto*.wic')}
+        if not candidates:
+            raise RuntimeError('The build finished without an uncompressed development WIC image.')
+        image = max(candidates, key=lambda p: p.stat().st_mtime)
+        manifest = {'path': str(image), 'sha256': digest(image),
+                    'source_commit': source_commit, 'source_dirty': source_dirty}
+        (LOCAL / 'image-ready.json').write_text(json.dumps(manifest, indent=2) + '\n')
+        print('Development image built and checksummed:', image)
+
+
+def development_image():
+    manifest_path = LOCAL / 'image-ready.json'
+    if not manifest_path.exists():
+        raise RuntimeError('No completed development image. Run bbb build first.')
+    manifest = json.loads(manifest_path.read_text())
+    image = Path(manifest['path'])
+    if digest(image) != manifest['sha256']:
+        raise RuntimeError('Development image checksum changed. Rebuild before flashing.')
+    return image
+
+
+def is_sd_card(path):
+    name = Path(path).name
+    if not re.fullmatch(r'mmcblk\d+', name):
+        return False
+    try:
+        return (Path('/sys/class/block') / name / 'device/type').read_text().strip() == 'SD'
+    except OSError:
+        return False
 
 
 def removable_card(path, inventory, image_size):
     """Reject partitions, fixed disks and mounted host filesystems before any write."""
     card = next((item for item in inventory['blockdevices'] if item.get('path') == path), None)
-    if not card or card.get('type') != 'disk' or not card.get('rm'):
+    removable = card and (is_sd_card(path) if re.fullmatch(r'mmcblk\d+', Path(path).name)
+                          else card.get('rm'))
+    if not card or card.get('type') != 'disk' or not removable:
         raise RuntimeError('Select a whole removable card, for example /dev/sdb.')
     if int(card['size']) < image_size:
         raise RuntimeError('The selected card is too small for this image.')
@@ -148,20 +191,20 @@ def removable_card(path, inventory, image_size):
         item = pending.pop()
         for mount in item.get('mountpoints') or []:
             protected = ('/home', '/boot', '/usr', '/var', '/opt', '/srv')
-            if mount and (mount == '/' or any(mount == p or mount.startswith(p + '/') for p in protected)):
+            if mount and (mount in ('/', '[SWAP]') or any(mount == p or mount.startswith(p + '/') for p in protected)):
                 raise RuntimeError('Refusing to write a disk containing a host filesystem.')
         pending.extend(item.get('children') or [])
     return card
 
 
-def flash(path):
-    image = fetch_image()
+def flash(path, bootstrap=False):
+    image = fetch_image() if bootstrap else development_image()
     path = str(Path(path).resolve())
     inventory = json.loads(subprocess.check_output(
         ['lsblk', '--json', '--bytes', '--paths', '-o',
          'NAME,PATH,TYPE,RM,SIZE,MOUNTPOINTS'], text=True))
     card = removable_card(path, inventory, image.stat().st_size)
-    print(f'Writing verified first-boot image to {path} ({card["size"]} bytes).', flush=True)
+    print(f'Writing {image.name} to {path} ({card["size"]} bytes).', flush=True)
     pending = [card]
     while pending:
         item = pending.pop()
@@ -188,11 +231,50 @@ with open(target, 'rb', buffering=0) as check:
         raise SystemExit('Read-back checksum failed; do not boot this card.')
 print('Card write and read-back checksum passed.')
 '''
-    expected = json.loads(LOCK.read_text())['bootstrap_image']['sha256']
+    expected = digest(image)
     run(['docker', 'run', '--rm', '--network', 'none', '--read-only',
          '--device', path, '--mount', f'type=bind,source={image},target=/image.wic,readonly',
          'python:3.14.4-slim', 'python3', '-c', writer, '/image.wic', path, expected])
     print('Remove the card from the reader and put it in the powered-off BeagleBone.')
+
+
+def ssh_command(host, remote=()):
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:-]*', host):
+        raise RuntimeError('Give only the board IP address or hostname.')
+    command = ['ssh', '-o', 'ConnectTimeout=10']
+    private_key = LOCAL / 'ssh/id_ed25519'
+    if private_key.exists():
+        command += ['-i', str(private_key)]
+    return [*command, 'root@' + host, *remote]
+
+
+def deploy_audio_tools(host):
+    source = ROOT / 'firmware/meta-ose-audio/recipes-core/ose-audio-tools/files/audioctl'
+    run(['sh', '-n', str(source)])
+    remote = '''set -eu
+target=$(mktemp /usr/bin/.audioctl.XXXXXX)
+trap 'rm -f "$target"' EXIT
+cat > "$target"
+sh -n "$target"
+chmod 0755 "$target"
+mv -f "$target" /usr/bin/audioctl
+echo 'Updated audioctl. No reboot or card removal needed.'
+'''
+    run(ssh_command(host, [remote]), input=source.read_bytes())
+
+
+def install_package(path, host):
+    package = Path(path).expanduser()
+    if package.suffix != '.ipk' or not package.is_file():
+        raise RuntimeError('Select an IPK package built by this Yocto configuration.')
+    remote = '''set -eu
+update=$(mktemp -d /tmp/ose-package.XXXXXX)
+trap 'rm -rf "$update"' EXIT
+cat > "$update/package.ipk"
+opkg install "$update/package.ipk"
+'''
+    with package.open('rb') as stream:
+        run(ssh_command(host, [remote]), stdin=stream)
 
 
 def main():
@@ -202,16 +284,24 @@ def main():
     console.add_argument('--port')
     actions.add_parser('status', help='Show the connected UART and local firmware state.')
     actions.add_parser('install-cli', help='Install the bbb shortcut without replacing another command.')
-    actions.add_parser('fetch-image', help='Download and verify the official first-boot image.')
-    writer = actions.add_parser('flash', help='Erase an explicitly selected removable card with the verified first-boot image.')
+    actions.add_parser('fetch-image', help='Download the optional minimal reference/rescue image.')
+    writer = actions.add_parser('flash', help='Write the completed development image to an explicitly selected card.')
     writer.add_argument('card', help='Whole removable card, for example /dev/sdb.')
+    writer.add_argument('--bootstrap', action='store_true', help='Use the minimal reference image for boot diagnosis instead.')
     configure = actions.add_parser('setup', help='Fetch pinned Yocto sources and configure the image.')
     configure.add_argument('--public-key')
     build = actions.add_parser('build', help='Build our bootable Yocto image.')
     build.add_argument('--parse-only', action='store_true')
     actions.add_parser('sdk', help='Build the cross-development SDK.')
-    ssh = actions.add_parser('ssh', help='Log in over Ethernet using your SSH key.')
-    ssh.add_argument('host')
+    ssh = actions.add_parser('ssh', help='Log in over USB networking or Ethernet using your SSH key.')
+    ssh.add_argument('host', nargs='?', default='192.168.7.2')
+    deploy = actions.add_parser('deploy', help='Update the audio menu over SSH without reflashing.')
+    deploy.add_argument('host', nargs='?', default='192.168.7.2')
+    package = actions.add_parser('install-package', help='Install a locally built IPK over SSH.')
+    package.add_argument('path')
+    package.add_argument('host', nargs='?', default='192.168.7.2')
+    yocto = actions.add_parser('yocto', help='Run bitbake or devtool in the pinned build environment.')
+    yocto.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args(sys.argv[1:] or ['console'])
     try:
         if args.action == 'console':
@@ -233,7 +323,7 @@ def main():
         elif args.action == 'fetch-image':
             fetch_image()
         elif args.action == 'flash':
-            flash(args.card)
+            flash(args.card, bootstrap=args.bootstrap)
         elif args.action == 'setup':
             setup(args.public_key)
         elif args.action == 'build':
@@ -241,13 +331,15 @@ def main():
         elif args.action == 'sdk':
             build_image(sdk=True)
         elif args.action == 'ssh':
-            if args.host.startswith('-') or any(c.isspace() for c in args.host) or '@' in args.host:
-                raise RuntimeError('Give only the board IP address or hostname.')
-            command = ['ssh']
-            private_key = LOCAL / 'ssh/id_ed25519'
-            if private_key.exists():
-                command += ['-i', str(private_key)]
-            run([*command, 'root@' + args.host])
+            run(ssh_command(args.host))
+        elif args.action == 'deploy':
+            deploy_audio_tools(args.host)
+        elif args.action == 'install-package':
+            install_package(args.path, args.host)
+        elif args.action == 'yocto':
+            if not args.command or args.command[0] not in ('bitbake', 'devtool'):
+                raise RuntimeError('Use bbb yocto bitbake ... or bbb yocto devtool ...')
+            yocto_command(args.command)
     except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
         print(f'Error: {error}', file=sys.stderr)
         return 1

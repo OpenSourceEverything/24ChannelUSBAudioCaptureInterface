@@ -13,13 +13,23 @@ usb_on() {
     mkdir -p "$audio_gadget"
     echo 0x1d6b > "$audio_gadget/idVendor"
     echo 0x0104 > "$audio_gadget/idProduct"
+    echo 0x0200 > "$audio_gadget/bcdUSB"
+    echo 0xEF > "$audio_gadget/bDeviceClass"
+    echo 0x02 > "$audio_gadget/bDeviceSubClass"
+    echo 0x01 > "$audio_gadget/bDeviceProtocol"
     mkdir -p "$audio_gadget/strings/0x409"
     cat /etc/machine-id > "$audio_gadget/strings/0x409/serialnumber"
     echo OpenSourceEverything > "$audio_gadget/strings/0x409/manufacturer"
     echo 'OSE Audio Bench' > "$audio_gadget/strings/0x409/product"
     mkdir -p "$audio_gadget/configs/c.1/strings/0x409"
-    echo 'One-channel USB audio' > "$audio_gadget/configs/c.1/strings/0x409/configuration"
+    echo 'USB login and one-channel audio' > "$audio_gadget/configs/c.1/strings/0x409/configuration"
     echo 500 > "$audio_gadget/configs/c.1/MaxPower"
+    mkdir -p "$audio_gadget/functions/ecm.usb0"
+    audio_mac_suffix=$(cut -c 1-10 /etc/machine-id | sed 's/../&:/g;s/:$//')
+    echo "02:$audio_mac_suffix" > "$audio_gadget/functions/ecm.usb0/dev_addr"
+    echo "06:$audio_mac_suffix" > "$audio_gadget/functions/ecm.usb0/host_addr"
+    [ -L "$audio_gadget/configs/c.1/ecm.usb0" ] ||
+        ln -s "$audio_gadget/functions/ecm.usb0" "$audio_gadget/configs/c.1/ecm.usb0"
     mkdir -p "$audio_gadget/functions/uac2.usb0"
     echo 1 > "$audio_gadget/functions/uac2.usb0/p_chmask"
     echo 48000 > "$audio_gadget/functions/uac2.usb0/p_srate"
@@ -30,7 +40,23 @@ usb_on() {
     set -- /sys/class/udc/*
     [ "$#" = 1 ] && [ -e "$1" ] || { echo 'Expected one USB device controller.'; exit 1; }
     basename "$1" > "$audio_gadget/UDC"
-    echo 'USB audio is ready. Connect the board USB device port to the recording computer.'
+    echo 'USB login and audio are ready. On the Linux host: bbb ssh'
+}
+
+usb_off() {
+    [ "$(id -u)" = 0 ] || { echo 'Log in as root to stop the USB device.'; exit 1; }
+    audio_gadget=/sys/kernel/config/usb_gadget/ose-audio
+    [ -d "$audio_gadget" ] || return 0
+    if [ -n "$(cat "$audio_gadget/UDC")" ]; then
+        echo '' > "$audio_gadget/UDC"
+    fi
+    for audio_function in uac2.usb0 ecm.usb0; do
+        rm -f "$audio_gadget/configs/c.1/$audio_function"
+        [ ! -d "$audio_gadget/functions/$audio_function" ] ||
+            rmdir "$audio_gadget/functions/$audio_function"
+    done
+    rmdir "$audio_gadget/configs/c.1/strings/0x409" "$audio_gadget/configs/c.1"
+    rmdir "$audio_gadget/strings/0x409" "$audio_gadget"
 }
 
 status() {
@@ -57,6 +83,7 @@ tone() {
 case "${1:-menu}" in
     status) status ;;
     usb-on) usb_on ;;
+    usb-off) usb_off ;;
     tone) tone ;;
     menu)
         while :; do
@@ -70,5 +97,5 @@ case "${1:-menu}" in
                 *) echo 'Choose 1, 2, 3 or 0.' ;;
             esac
         done ;;
-    *) echo 'Usage: audioctl [status|usb-on|tone]'; exit 1 ;;
+    *) echo 'Usage: audioctl [status|usb-on|usb-off|tone]'; exit 1 ;;
 esac

@@ -1,100 +1,159 @@
 # Yocto Development Baseline
 
-The firmware baseline is Yocto Project 5.0.21 (Scarthgap LTS), using the upstream
-beaglebone-yocto board support and the product's meta-ose-audio layer.
-[sources.json](sources.json) pins the source commit and the official reference
-image checksum. Local sources, build output and provisioning files stay in
-the ignored .local directory.
+Install the complete development image once. Leave the microSD in the board
+for ordinary code changes: log in and send updates over USB networking or
+Ethernet. A 16 GB card is sufficient. The large compiler build runs on the
+computer, not the BeagleBone.
 
-## Talk to the board
+The baseline is Yocto Project 5.0.21 (Scarthgap LTS), using upstream
+beaglebone-yocto support and the product's meta-ose-audio layer.
+[sources.json](sources.json) pins the source commit and optional reference
+image checksum. Sources, caches, images and provisioning files stay in the
+ignored .local directory.
 
-From the repository root:
+## Board controls
 
-```sh
-./device install-cli
-bbb
-```
+Run ./device install-cli once from the repository. Then use these from any
+directory when ~/.local/bin is on PATH:
 
-The shortcut opens the same terminal as ./device console and can be used from
-any directory when ~/.local/bin is on PATH.
+| Command | Purpose |
+| --- | --- |
+| bbb | Open UART. Press Enter, then log in as root if asked. Exit with Ctrl+]. |
+| bbb ssh | Log in over the USB device cable at 192.168.7.2. |
+| bbb ssh BOARD_IP | Log in over Ethernet at the address shown by board status. |
+| bbb deploy | Send the current audioctl script over SSH without flashing or rebooting. |
+| bbb build | Build the complete development image on the computer. |
 
-Press Enter. At a login prompt, enter root and press Enter. The development
-image permits a local UART root login without a password. Exit the host
-terminal with Ctrl+]. Automatic adapter selection requires exactly one
-candidate; use --port PATH when multiple adapters are connected.
+The UART adapter and USB device cable are separate connections. Use the small
+mini-USB device socket for the computer connection; the full-size USB-A socket
+is the board's host port. UART remains usable if USB networking fails. Use
+bbb console --port PATH when multiple UART adapters are connected.
 
-In the custom image, enter audioctl for a numbered menu:
+In the new image, audioctl opens a menu for status, USB setup and a 1-kHz test
+tone. The initial USB stream is one channel at 48 kHz, 16 bits. Ctrl+C stops the
+tone. This tests the USB path and does not demonstrate an external ADC.
 
-1. Board status, including the network address and audio devices.
-2. Enable the initial one-channel 48-kHz/16-bit USB audio device.
-3. Send a 1-kHz test tone to the USB host; stop with Ctrl+C.
+The image starts ECM USB networking and UAC2 audio together. The board uses
+192.168.7.2/30 and offers the computer 192.168.7.1 through DHCP, without an
+Internet gateway or DNS server. Enable automatic IPv4 on the computer's USB
+network connection. Use UART or Ethernet to diagnose a conflicting subnet.
+Composite operation and available endpoints require a built-kernel hardware
+test before this configuration can be called working.
 
-For Ethernet access, use the IP address shown by board status:
+SSH accepts the public key selected during setup; password authentication is
+disabled. UART root login has no password in this development image. This is
+a bench access policy. Production credentials and USB IDs need a separate
+configuration; the current Linux Foundation VID/PID is for local development.
 
-```sh
-./device ssh <board-ip>
-```
-
-SSH accepts the public key selected during setup. SSH password authentication
-is disabled. This is a root-access development image for board bring-up;
-production access policy is a separate product configuration.
-
-## Fast first boot
-
-```sh
-./device fetch-image
-```
-
-This downloads the official core-image-minimal reference image and verifies
-its pinned SHA-256. It establishes the boot/UART baseline. It does not contain
-our audio menu, SSH configuration or UAC2 kernel additions. Those are supplied
-by the source-built ose-audio-image below. Do not report the reference image
-as a completed custom firmware build.
-
-After identifying the project card, write it with:
-
-```sh
-./device flash /dev/<project-card>
-```
-
-This erases that card. The helper requires Linux, Docker and udisksctl, rejects
-fixed disks, partitions and mounted host filesystems, and verifies the written
-bytes against the image checksum. Select the whole removable card, not a
-partition or the host disk. Boot the BeagleBone from the card; the board's boot button
-can force the SD bootloader when the eMMC bootloader otherwise takes precedence.
-
-## Build the product development image
+## Build and install once
 
 Use a supported Linux host with the prerequisites in the
 [Yocto system requirements](https://docs.yoctoproject.org/5.0.21/ref-manual/system-requirements.html).
-The host helper uses Python 3.11 or newer, Git, Bash, OpenSSH and pyserial.
-Builds use two jobs by default.
+The helper uses Python 3.11 or newer, Git, Bash, OpenSSH and pyserial. Builds
+use two jobs by default and reuse downloaded sources and compiled cache entries.
 
 ```sh
-./device setup
-./device build --parse-only
-./device build
+bbb setup
+bbb build --parse-only
+bbb build
+bbb flash /dev/PROJECT_CARD
 ```
 
-Setup checks out the exact pinned Poky release and creates build configuration.
-It uses ~/.ssh/id_ed25519.pub by default; --public-key PATH selects another
-public key. If the default key is absent, setup creates a project key under
-.local/ssh. Private keys never enter the layer or Git.
+Setup checks out pinned Poky sources and generates build configuration. It
+uses ~/.ssh/id_ed25519.pub by default; --public-key PATH selects another key.
+If absent, setup creates a project key under .local/ssh. Private keys never
+enter the layer or Git. A successful build records its image path and checksum
+in .local/image-ready.json; flash selects that completed image.
 
-The custom image contains the board menu, ALSA tools, key-based OpenSSH access,
-systemd and a kernel configuration fragment for USB UAC2 and McASP.
-Built disk images appear under:
+Flash erases the selected card. It requires Linux, Docker and udisksctl,
+rejects partitions, fixed disks/eMMC and mounted host filesystems, and verifies
+the written image by reading it back. Native SD readers may report removable=0;
+they are accepted only when the kernel identifies their media as SD. Select
+the whole card, not a partition. No card is selected automatically.
 
-```text
-.local/build/tmp/deploy/images/beaglebone-yocto/
-```
+After verification, power off the board, insert the card and boot. If the old
+eMMC bootloader takes precedence, hold the boot button while applying power
+to select SD boot. Capture the UART boot log and confirm the new OS before
+using network/audio commands. Routine development then keeps the card in place.
 
-To build the cross-development SDK:
+The image includes OpenSSH, ALSA tools, systemd, the audio menu, UAC2/ECM kernel
+configuration, opkg package management and 1 GiB of extra root filesystem space.
+Images appear under .local/build/tmp/deploy/images/beaglebone-yocto/.
+
+## Normal update loop
+
+Edit meta-ose-audio/recipes-core/ose-audio-tools/files/audioctl, then run:
 
 ```sh
-./device sdk
+bbb deploy
+bbb ssh
+audioctl
 ```
 
-Changing a kernel fragment still requires a built-kernel configuration check
-and a hardware boot test. A parsed recipe or generated image alone is not
-proof of working USB audio or ADC capture.
+Deploy validates shell syntax and replaces /usr/bin/audioctl atomically. It
+does not update dependencies, keys, services or the kernel. To apply changes
+to an already configured USB device, stop the tone, then run
+systemctl restart ose-audio-usb from UART; this disconnects USB SSH. Keep
+script changes in the recipe so the next clean image includes them.
+
+For packages and new dependencies:
+
+```sh
+bbb yocto bitbake RECIPE
+bbb install-package PATH_TO_BUILT_PACKAGE.ipk
+```
+
+Packages appear under .local/build/tmp/deploy/ipk/. Install packages and any
+new dependencies from this same build configuration. opkg reports missing
+dependencies; no public package feed is configured. A local package revision
+service increments revisions when rebuilt content changes. Preserve its local
+database while maintaining an existing package stream. Do not install packages
+from an unrelated distribution.
+
+Yocto's application development workflow is also available:
+
+```sh
+bbb yocto devtool modify RECIPE
+bbb yocto devtool build RECIPE
+bbb yocto devtool deploy-target RECIPE root@192.168.7.2
+```
+
+Use devtool for recipes in its workspace. It deploys files for development,
+bypassing the package manager; dependencies must already be installed. Avoid
+mixing devtool and opkg updates for the same files. See the
+[deployment reference](https://docs.yoctoproject.org/5.0.21/ref-manual/devtool-reference.html#deploying-your-software-on-the-target-machine).
+If setup generated a project key, configure devtool's SSH identity for it;
+bbb ssh/deploy/install-package select it automatically.
+
+| Change | Typical action |
+| --- | --- |
+| Application/menu | Deploy over SSH; restart its process if necessary. |
+| New userspace dependency | Build/install matching packages. |
+| Service/network configuration | Update its package and reload/restart; retain UART access. |
+| Kernel/driver/device tree | Rebuild and validate matching kernel, modules and boot files; transfer over the network and reboot using a board-specific update procedure. |
+| Partition layout or unbootable storage | Reinstall/recover the SD image when required. |
+
+Ordinary code work requires no reflash. A tested kernel/boot update procedure
+is still needed; installing a kernel IPK alone is not a complete boot update.
+A production updater with interruption recovery is future work.
+
+## Platform and product boundaries
+
+Upstream Poky owns the toolchain and board support. The product layer owns its
+image, kernel fragment, access configuration, USB service and audio tools.
+Keep upstream sources clean; put changes in recipes or narrow append files.
+This keeps the build understandable and makes another supported board possible
+without rewriting application logic. Clocks, pinmux and peripheral support
+still require board-specific validation.
+
+Build the cross-development SDK with bbb sdk. Use bbb yocto bitbake ... for
+other tasks in the pinned environment. Recipe parsing, a compiled image,
+a hardware boot and a successful recording are separate results. Inspect the
+built kernel configuration and test hardware before claiming audio works.
+
+## Optional minimal reference image
+
+bbb fetch-image verifies the pinned official core-image-minimal WIC for boot
+diagnosis. Only bbb flash /dev/PROJECT_CARD --bootstrap selects it. It lacks
+the custom SSH/menu/UAC2 additions and is not the normal first installation.
+Using it would require another custom image installation later.
