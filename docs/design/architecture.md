@@ -116,7 +116,8 @@ Start with a line-level input. Input classes describe the source interface:
   protocol; an analog preamp/ADC path is not interchangeable with it.
 
 Amplifier classes A, AB and D describe circuit operation rather than these
-source interfaces.
+source interfaces. See [analog front ends](analog-front-end.md) for quality
+criteria, bench access and build-versus-buy evaluation.
 
 A companion preamp can become a separate reusable repository once its analog
 output level, impedance, balance, connector, power, grounding and channel

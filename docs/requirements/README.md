@@ -49,6 +49,12 @@ USB-003 or prove analog capture.
 | ELE-001 | Digital connections shall respect BeagleBone and ADC I/O voltage limits, including startup and unpowered conditions. | Review rail sequencing and measure interface levels. |
 | ELE-002 | The design shall document power consumption, supply rails, grounding, decoupling, and the supported cable/power arrangement. | Measure the prototype and review the schematic and BOM. |
 | ELE-003 | Shared header functions, including HDMI/eMMC conflicts, shall be resolved for the exact board and device-tree configuration before wiring McASP. | Compare schematic, pinmux, active drivers, and measured pins. |
+| ELE-004 | Development hardware shall expose labeled, probe-accessible power rails, ground, analog input, serial data, bit clock, frame sync and required master-clock signals through test points or documented headers. | Verify physical probe clearance, signal identity and accessible ground references on the prototype. |
+
+The first ADC shall be an assembled breakout or evaluation board with its
+required support circuitry and a documented integration interface. A bare
+converter IC alone does not meet the initial bench requirement. Keep serial
+clock wiring short and provide nearby ground access for probing.
 
 ## Staged acceptance
 

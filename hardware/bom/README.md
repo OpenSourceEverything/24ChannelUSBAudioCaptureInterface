@@ -18,6 +18,11 @@ the complete module must separately meet all of the following:
 - A defined input full scale, coupling, bias, impedance and unused-input
   termination. Include any required attenuation, buffer or filter components.
 - Exposed serial data, bit clock, frame sync and master clock where required.
+- Labeled headers or test points with room for scope probes and nearby ground
+  connections; accessible power rails and analog input for level checks.
+- Assembled support circuitry and mechanically secure bench connections.
+  A bare IC or a board requiring probes directly on fine-pitch IC legs does
+  not meet the initial development requirement.
 
 Reference: [TI PCM1808 product documentation](https://www.ti.com/product/PCM1808).
 An evaluation board with a complete schematic may reduce integration uncertainty
@@ -26,6 +31,8 @@ even if its initial cost is higher. No module is approved by chip-name matching.
 The initial analog source is a known low-level line output or signal generator.
 A separate microphone preamp is optional. If used, its maximum output must fit
 the input circuit; a raw microphone or an instrument is not a line source.
+See [analog front ends and build-versus-buy evaluation](../../docs/design/analog-front-end.md)
+for the difference between an input buffer, a microphone preamp and an ADC.
 
 ## Sourcing workflow
 

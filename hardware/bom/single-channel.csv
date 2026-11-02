@@ -1,7 +1,7 @@
 id,quantity,item,minimum_specification,procurement_state,notes
 CTRL-001,1,BeagleBone reference controller,McASP and USB high-speed device port,owner_reports_available,Exact board revision and usable pins require qualification
 DBG-001,1,USB to UART adapter,3.3 V TTL and 115200 baud,owner_reports_available,Console connection is separate from USB audio
-ADC-001,1,PCM1808 stereo audio ADC module,24-bit 96-kHz I2S with schematic and configurable compatible clocking,candidate_to_source,Use one input; qualify actual module revision and terminate unused input
+ADC-001,1,Assembled PCM1808 stereo audio ADC breakout or evaluation board,24-bit 96-kHz I2S with schematic and configurable compatible clocking plus probe-accessible signals,candidate_to_source,Use one input; require support circuitry and labeled headers or test points; terminate unused input
 ANA-001,1,Line input conditioning assembly,ADC-specific coupling bias filtering protection and attenuation as needed,design_dependent,Exact resistor capacitor buffer and connector BOM follows module schematic
 SRC-001,1,Known analog source,Adjustable line-level tone or audio below qualified input full scale,inventory_unconfirmed,A signal generator or attenuated line output can avoid a new mic preamp
 CAB-001,1,USB data cable,Host connector to board device connector with data conductors,inventory_unconfirmed,BeagleBone Black uses mini-USB; confirm physical board
