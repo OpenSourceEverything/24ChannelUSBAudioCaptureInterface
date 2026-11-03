@@ -5,6 +5,10 @@ for ordinary code changes: log in and send updates over USB networking or
 Ethernet. A 16 GB card is sufficient. The large compiler build runs on the
 computer, not the BeagleBone.
 
+The [development turnaround requirements](development-workflow.md) define
+the normal edit/test path, initial timing targets, cache retention and when
+a separate faster builder is justified.
+
 The baseline is Yocto Project 5.0.21 (Scarthgap LTS), using upstream
 beaglebone-yocto support and the product's meta-ose-audio layer.
 [sources.json](sources.json) pins the source commit and optional reference

@@ -96,6 +96,14 @@ of analog performance.
   initially, then deploys ordinary application changes over SSH with the card
   left in the board. Document package/dependency updates, reboot requirements
   and recovery separately. Routine application work shall not require reflashing.
+- FW-005: Ordinary application edits shall have a documented incremental
+  compile/deploy/test path independent of a complete image or SDK rebuild.
+  Measure edit-to-result time and recording/board downtime separately, using
+  the initial targets in the [development workflow](../../firmware/development-workflow.md).
+- FW-006: Preserve reusable downloads, compiled-task cache and matching SDKs.
+  Full platform builds shall run independently of the last working board
+  system and report live completion/failure state. Support a separate build
+  host through pinned sources/configuration and versioned artifacts.
 - PRD-001: Maintain reproducible hardware sources, firmware configuration,
   build/install instructions, schematics, connector definitions, and a BOM
   with exact approved manufacturer parts or module revisions.
