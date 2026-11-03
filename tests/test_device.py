@@ -5,6 +5,7 @@ import importlib.machinery
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -17,6 +18,32 @@ loader.exec_module(device)
 
 
 class DeviceBoundaries(unittest.TestCase):
+    def test_stale_build_status_is_reported_as_stopped(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'install-status.json').write_text(json.dumps({
+                'stage': 'BUILDING', 'message': 'Old build record'}))
+            with patch.object(device, 'LOCAL', root):
+                self.assertEqual(device.installation_status()['stage'], 'STOPPED')
+
+    def test_live_build_status_remains_building(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'install-status.json').write_text(json.dumps({
+                'stage': 'BUILDING', 'message': 'Live build',
+                'process': device.process_identity(os.getpid())}))
+            with patch.object(device, 'LOCAL', root):
+                self.assertEqual(device.installation_status()['stage'], 'BUILDING')
+
+    def test_reused_process_id_does_not_keep_old_build_alive(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            identity = {**device.process_identity(os.getpid()), 'start_ticks': 'wrong'}
+            (root / 'install-status.json').write_text(json.dumps({
+                'stage': 'WRITING', 'message': 'Old writer', 'process': identity}))
+            with patch.object(device, 'LOCAL', root):
+                self.assertEqual(device.installation_status()['stage'], 'STOPPED')
+
     def test_install_preserves_an_unrelated_command(self):
         with tempfile.TemporaryDirectory() as folder:
             home = Path(folder)

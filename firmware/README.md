@@ -25,6 +25,9 @@ directory when ~/.local/bin is on PATH:
 | bbb build | Build the complete development image on the computer. |
 | bbb status | Show board/build information and any active card-installation status. |
 
+Active installation status is checked against the running process. A stopped
+job is reported as STOPPED rather than retaining an old BUILDING/WRITING label.
+
 The UART adapter and USB device cable are separate connections. Use the small
 mini-USB device socket for the computer connection; the full-size USB-A socket
 is the board's host port. UART remains usable if USB networking fails. Use

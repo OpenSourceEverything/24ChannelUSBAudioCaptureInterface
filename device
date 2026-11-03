@@ -39,6 +39,33 @@ def digest(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+def process_identity(pid):
+    """Identify a live Linux process without confusing a reused PID or reboot."""
+    try:
+        pid = int(pid)
+        if pid <= 0:
+            return None
+        fields = (Path('/proc') / str(pid) / 'stat').read_text().rsplit(')', 1)[1].split()
+        return {'pid': pid, 'start_ticks': fields[19],
+                'boot_id': Path('/proc/sys/kernel/random/boot_id').read_text().strip()}
+    except (OSError, ValueError, TypeError, IndexError):
+        return None
+
+
+def installation_status():
+    path = LOCAL / 'install-status.json'
+    if not path.exists():
+        return None
+    state = json.loads(path.read_text())
+    if state['stage'] in ('BUILDING', 'CHECKING', 'WRITING'):
+        recorded = state.get('process')
+        if not recorded or process_identity(recorded.get('pid')) != recorded:
+            state = {**state, 'stage': 'STOPPED',
+                     'message': 'The installation process stopped. The SD card is not ready.',
+                     'next_action': 'Leave the card in the reader; the installation job needs restarting.'}
+    return state
+
+
 def install_cli():
     command = Path.home() / '.local/bin/bbb'
     command.parent.mkdir(parents=True, exist_ok=True)
@@ -318,9 +345,8 @@ def main():
                 print('UART:', error)
             print('Yocto configured:', (LOCAL / 'build/conf/local.conf').exists())
             print('Build output:', LOCAL / 'build/tmp/deploy/images/beaglebone-yocto')
-            installation = LOCAL / 'install-status.json'
-            if installation.exists():
-                state = json.loads(installation.read_text())
+            state = installation_status()
+            if state:
                 print('Card installation:', state['stage'])
                 print(state['message'])
                 if state.get('next_action'):
