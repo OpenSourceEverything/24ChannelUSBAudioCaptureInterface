@@ -25,13 +25,21 @@ Establish this firmware baseline and its USB tone before buying analog parts.
 ## Product documents
 
 - [Product requirements](docs/requirements/README.md)
+- [MIC/LINE/INSTRUMENT input requirements](docs/requirements/analog-inputs.md)
+- [Input-driven ADC selection research](docs/research/adc-selection.md)
 - [Architecture and bandwidth constraints](docs/design/architecture.md)
 - [Single-channel integration procedure](docs/bring-up/single-channel.md)
 - [Prototype BOM and sourcing criteria](hardware/bom/README.md)
 - [Initial prototype BOM](hardware/bom/single-channel.csv)
 
-External preamps provide analog signals; the BeagleBone does not replace audio
-ADCs. Its general-purpose analog inputs are not the proposed audio converters.
+The proposed product has one XLR/quarter-inch combo socket per channel with
+MIC, LINE and INSTRUMENT modes, supporting microphones, balanced/unbalanced
+line sources and raw passive guitars. Each source needs its appropriate
+preamp, receiver or buffer before the ADC. First prove a known line tone;
+the complete multi-mode front end is a later hardware milestone.
+
+The BeagleBone does not replace audio ADCs. Its general-purpose analog inputs
+are not the proposed audio converters.
 The UART debug cable provides console access. USB audio uses the board's
 separate USB device connection.
 

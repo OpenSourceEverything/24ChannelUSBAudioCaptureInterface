@@ -93,7 +93,13 @@ errors visible. Inspect the tone recording before proceeding.
 
 1. Qualify an ADC module using the [BOM criteria](../../hardware/bom/README.md).
    Confirm its schematic, exposed mode pins, oscillator, clock ownership,
-   sample format and input circuit before wiring.
+   sample format and input circuit before wiring. Start with a known line
+   source, around 0.5 V peak-to-peak at 1 kHz after checking the circuit's
+   input limits and measuring the voltage. The future combo-socket
+   MIC/INSTRUMENT circuits are not required for this first test. A PCM1808EVM
+   with its fitted 12.288-MHz crystal needs an external clock arrangement
+   for the documented 96-kHz/256-fs mode; see the
+   [ADC review](../research/adc-selection.md#clock-and-board-traps).
 2. Assign the exact McASP header pins and remove conflicting HDMI/pinmux
    ownership in the chosen image. Check that all digital signals are at
    compatible levels. Do not connect analog audio to McASP or GPIO.

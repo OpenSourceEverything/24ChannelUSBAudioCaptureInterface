@@ -8,9 +8,13 @@ The [architecture](../design/architecture.md) identifies feasibility constraints
 
 The product receives analog audio, converts it into synchronized digital
 samples, and exposes independent recording channels to a Linux USB host.
-The initial product boundary starts at external preamp/line outputs. A
-microphone preamp may become a reusable companion product with a documented
-electrical interface.
+The first bench milestone starts at a known line source. The proposed product
+boundary also includes analog microphones and raw passive guitars through
+per-channel MIC/LINE/INSTRUMENT conditioning and an XLR/quarter-inch combo
+socket. See the [input requirements](analog-inputs.md) for source-facing
+targets and their status. A preamp/buffer may become a reusable module with
+a documented electrical interface; separate repository packaging is deferred
+until that interface is defined.
 
 ## Functional requirements
 
@@ -46,6 +50,7 @@ USB-003 or prove analog capture.
 | ANA-001 | Every analog input shall have a documented connector, pinout, signal type, impedance, maximum level, common-mode/bias requirement, and ground reference. | Review the input specification and measure the assembled circuit. |
 | ANA-002 | Input conditioning shall supply the coupling, bias, attenuation, filtering, and protection required by the selected ADC and source. | Review the ADC reference circuit and verify levels and clipping on hardware. |
 | ANA-003 | Mic, line, instrument, and digital sources shall not be treated as electrically interchangeable. Phantom power shall not be present on the initial line-input path. | Inspect source/interface specifications and measure input voltages. |
+| ANA-004 | The production input design shall provide MIC, LINE and INSTRUMENT modes for the requested microphone, balanced/unbalanced line and raw-guitar coverage. Use the proposed [input targets](analog-inputs.md) to drive analog circuit and ADC selection. | Review per-mode impedance, gain, headroom, connector wiring and measured performance; distinguish proposed limits from demonstrated results. |
 | ELE-001 | Digital connections shall respect BeagleBone and ADC I/O voltage limits, including startup and unpowered conditions. | Review rail sequencing and measure interface levels. |
 | ELE-002 | The design shall document power consumption, supply rails, grounding, decoupling, and the supported cable/power arrangement. | Measure the prototype and review the schematic and BOM. |
 | ELE-003 | Shared header functions, including HDMI/eMMC conflicts, shall be resolved for the exact board and device-tree configuration before wiring McASP. | Compare schematic, pinmux, active drivers, and measured pins. |
@@ -78,9 +83,10 @@ they are not existing test results or final product performance claims.
 Record the board revision, ADC/module revision, firmware/kernel, host OS,
 application, negotiated formats, duration, errors, and signal evidence with
 each result. Measure latency, noise, clipping, distortion, and crosstalk before
-setting saleable product limits; no numeric audio-quality or latency promise
-is established here. A 24-bit sample format does not imply 24 effective bits
-of analog performance.
+setting saleable product limits. The [analog input document](analog-inputs.md)
+sets proposed numeric design targets; those are not verified product claims.
+No numeric end-to-end latency promise is established. A 24-bit sample format
+does not imply 24 effective bits of analog performance.
 
 ## Productization
 

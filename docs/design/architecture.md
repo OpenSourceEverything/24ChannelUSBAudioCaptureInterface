@@ -3,8 +3,9 @@
 ## Signal path
 
 ```text
-24 external analog preamp/line outputs
-  -> input coupling, level/bias conditioning, filtering and protection
+24 MIC / LINE / INSTRUMENT inputs, one source per combo socket
+  -> mode-specific preamp / line receiver / high-impedance guitar buffer
+  -> ADC level/bias conditioning, filtering and protection
   -> 24 audio ADC channels, provisionally three eight-channel devices
   -> synchronized serial audio data lanes
   -> BeagleBone McASP + DMA
@@ -14,6 +15,12 @@
   -> Linux USB host audio capture
   -> Audacity or another recording application
 ```
+
+The first prototype exercises only a known line source. Full source coverage
+requires the [input requirements](../requirements/analog-inputs.md), including
+separate microphone and guitar conditioning. A combo connector alone does
+not supply these functions. The reusable front-end module boundary remains
+to be defined; external preamps can feed LINE mode.
 
 The Linux USB gadget is a USB peripheral implemented by the BeagleBone.
 ALSA capture hardware and a UAC2 gadget are separate endpoints; merely enabling
@@ -41,8 +48,9 @@ resources on BeagleBone Black and requires an explicit pin/resource decision.
 describes the separate peripheral, DMA, device-tree and sound-card layers.
 
 AK5558VN is a candidate eight-channel converter, not a selected production
-part. Check current manufacturer documentation for its differential inputs,
-supplies, clock modes and exact TDM constraints. Three chips do not
+part. See the [input-driven ADC review](../research/adc-selection.md) for
+manufacturer evidence, 96-kHz measurement conditions and remaining analog
+qualification. Three chips do not
 automatically form a 24-channel serial bus. See
 [AKM's ADC catalog](https://www.akm.com/us/en/products/audio/audio-adc/).
 
@@ -50,7 +58,8 @@ For the first input, a documented PCM1808 stereo module is a lower-complexity
 candidate. Use one analog channel, terminating the other as its circuit
 requires. The [TI PCM1808](https://www.ti.com/product/PCM1808) supports 24-bit
 conversion up to 96 kHz and I2S/left-justified serial output; it is not a
-drop-in eight-channel TDM design.
+drop-in eight-channel TDM design. Its documented analog performance falls
+short of the proposed production LINE targets; it can still prove integration.
 
 ## USB bandwidth is an endpoint constraint
 

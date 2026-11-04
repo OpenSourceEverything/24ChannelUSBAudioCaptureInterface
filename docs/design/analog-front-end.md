@@ -2,6 +2,13 @@
 
 ## Functions and boundaries
 
+The [proposed input contract](../requirements/analog-inputs.md) now calls for
+one combo socket with MIC, LINE and INSTRUMENT modes per channel. It defines
+the source impedance, gain, headroom and quality targets that drive this
+circuit. Keep the first bench milestone to one known LINE tone. The
+[ADC review](../research/adc-selection.md) distinguishes that prototype from
+production quality and identifies the evaluation board's clock limitation.
+
 An analog-to-digital converter (ADC) produces numeric samples from analog
 voltage. The IC is one component. A usable ADC board also needs power
 decoupling, clocking, configuration and input conditioning appropriate to the

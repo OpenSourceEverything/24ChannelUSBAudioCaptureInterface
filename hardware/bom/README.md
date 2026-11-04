@@ -7,7 +7,11 @@ descriptions after technical qualification. A cheap module with the right chip
 name can still have an unsuitable clock or input circuit.
 
 Use one input of a documented two-channel PCM1808 ADC module for the first
-line-level prototype. The chip supports 24-bit conversion at up to 96 kHz;
+line-level integration prototype. It is not the proposed production converter:
+its analog performance falls short of the new LINE quality targets. See
+[input requirements](../../docs/requirements/analog-inputs.md) and
+[ADC selection evidence](../../docs/research/adc-selection.md).
+The chip supports 24-bit conversion at up to 96 kHz;
 the complete module must separately meet all of the following:
 
 - A published schematic, connector pinout and identifiable hardware revision.
@@ -27,12 +31,20 @@ the complete module must separately meet all of the following:
 Reference: [TI PCM1808 product documentation](https://www.ti.com/product/PCM1808).
 An evaluation board with a complete schematic may reduce integration uncertainty
 even if its initial cost is higher. No module is approved by chip-name matching.
+The documented PCM1808EVM's fitted crystal is 12.288 MHz; the 96-kHz/256-fs
+configuration needs a 24.576-MHz source through its external-clock selection.
+CLK-001 covers that conditional requirement; do not omit it from total cost.
 
 The initial analog source is a known low-level line output or signal generator.
 A separate microphone preamp is optional. If used, its maximum output must fit
 the input circuit; a raw microphone or an instrument is not a line source.
 See [analog front ends and build-versus-buy evaluation](../../docs/design/analog-front-end.md)
 for the difference between an input buffer, a microphone preamp and an ADC.
+
+The production combo socket, MIC preamp, INSTRUMENT buffer and any phantom
+power circuit are deliberately outside this one-LINE-channel BOM. Their
+required functions are recorded in the input contract. Generate their exact
+design BOM after the source interface and converter circuit are qualified.
 
 ## Sourcing workflow
 
