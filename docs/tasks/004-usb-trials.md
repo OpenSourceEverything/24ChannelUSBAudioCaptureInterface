@@ -2,6 +2,21 @@
 
 State: HOLD_G1. No full-channel hardware test has run.
 
+Implementation checkpoints, to complete before unattended execution:
+
+1. Record accepted G1 disposition, exact artifact hashes and authorized scope.
+2. Finish capture orchestration: fresh manifest, native PCM readiness barrier,
+   bounded recording/free-space checks, live comparison, independent worker
+   supervision, timeouts, persisted progress/terminal results and notification.
+   Qualify killed/stalled producer/recorder/checker and cleanup fixtures.
+3. Qualify an observable USB completion-status counter and loss detection;
+   retain actual period/ring sizes and xruns. Dynamic debug is disabled in the
+   cached build; quiet logs do not close this item.
+4. Complete the remaining channel-active marker and exact tone/sweep/burst
+   vectors before claiming the whole TEST-008 pattern bank is implemented.
+5. Execute the agreed smoke/matrix, then pattern/duration/load and
+   startup/reconnect/recovery subtests, updating this task after each chunk.
+
 Prerequisites: external G1 findings resolved and owner disposition recorded;
 qualified tools from [002](002-host-tools.md); reviewed configuration,
 recording directory, error observations and recovery path from

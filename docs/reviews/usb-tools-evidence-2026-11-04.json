@@ -1,0 +1,141 @@
+{
+  "date": "2026-11-04",
+  "scope": "host_software_and_arm_emulation_only",
+  "g1": "HOLD",
+  "hardware_verified": false,
+  "review_baseline_commit": "7c11cc2a0566f9d7ebf7effebb8f9a1b5e2cb83c",
+  "review_input_sha256": {
+    "docs/requirements.md": "66b8a6c5a9d502c618275291e280a625fe3528da64a8ff73c7de9f335d69560a",
+    "docs/test-procedures.md": "dcdbba2c2e6410c5c819c16830baae9693723574bc18eac70c2d8c91ceb2857d",
+    "docs/reviews/usb-stage-review.md": "9834444ea766678e96f4fdd90ae0917d6ec6551118d760d7fba1b579692c0588"
+  },
+  "implementation_sha256": {
+    "docs/design/usb-test-pattern.md": "3653ef5a2582bd9bd1ce493a1f67ad1b5f90be0562934d5f9e44b2cd25ff4e83",
+    "tools/usb_integrity/generate.c": "8fa9f752d9b8d6cf1d340a689bfbcd38ec3313edf12c40ef52da2f66215c685c",
+    "tools/usb_integrity/check.c": "eb9473b622126f350c3e76ac0267cf65c36bd95277972c84e83366cea5b4f693",
+    "tools/usb_integrity/run.py": "ff3bbc68c3c749d1caf3c204462f9f8a5dff8a625af11f92df1d93fdef98a8a3",
+    "tools/usb_integrity/build-yocto.py": "112cd631fbf1f3b5ccc85e53f0ba0341392149a874da1eed17610e0622b0f651",
+    "tests/test_usb_integrity.py": "caf20b0e626bd59decd4863cb6dc7e6e30979296c2606531759ae74c2da231bf",
+    "tests/test_usb_integrity_runner.py": "a31ebfa0053c7988fecea48ae2144b81fc7f8e38b0017fba2c43414e3978f254"
+  },
+  "native_tests": {
+    "status": "PASS",
+    "project_methods": 59,
+    "usb_methods": 24,
+    "elapsed_seconds": 3.382,
+    "all_channel_bit_flips": 576,
+    "stdio_damage_offsets": [
+      65535,
+      65536,
+      65537
+    ]
+  },
+  "host_pipe": {
+    "status": "PASS",
+    "scope": "host_pipe_capacity_only",
+    "elapsed_seconds": 2.0544001859379932,
+    "audio_seconds": 60.0,
+    "combined_realtime_multiple": 29.205604833317974,
+    "payload_bytes_per_second": 201869140.60789382,
+    "comparison": {
+      "status": "PASS",
+      "scope": "finite_pcm_comparison",
+      "channels": 24,
+      "pattern": "identity",
+      "frames": "5760000",
+      "first_frame": "0",
+      "compared_bytes": "414720000",
+      "leading_frames_excluded": "0",
+      "trailing_frames_excluded": "0"
+    },
+    "producer_exit": 0,
+    "checker_exit": 0
+  },
+  "host_build": {
+    "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "flags": [
+      "-std=c11",
+      "-O2",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-Wconversion",
+      "-pedantic"
+    ],
+    "source_sha256": {
+      "generate": "8fa9f752d9b8d6cf1d340a689bfbcd38ec3313edf12c40ef52da2f66215c685c",
+      "check": "eb9473b622126f350c3e76ac0267cf65c36bd95277972c84e83366cea5b4f693"
+    },
+    "binary_sha256": {
+      "generate": "13cf016a365d204af7a443bb70229a510476a99a10c05051655686cd8db24e1d",
+      "check": "da3605533cb18ad28e8121f4ab60c60418c8a22fd21326363c27ea9e285e3b44"
+    }
+  },
+  "arm_build": {
+    "status": "PASS",
+    "scope": "compilation_only",
+    "compiler": "arm-poky-linux-gnueabi-gcc (GCC) 13.5.0",
+    "flags": [
+      "-std=c11",
+      "-O2",
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-Wconversion",
+      "-pedantic",
+      "-mcpu=cortex-a8",
+      "-mfpu=neon",
+      "-mfloat-abi=hard"
+    ],
+    "source_sha256": {
+      "generate": "8fa9f752d9b8d6cf1d340a689bfbcd38ec3313edf12c40ef52da2f66215c685c",
+      "check": "eb9473b622126f350c3e76ac0267cf65c36bd95277972c84e83366cea5b4f693"
+    },
+    "binary_sha256": {
+      "generate": "006da210750ce3ed6abb9801246a0c8489b0048def1c63b3f5b869000e6013ab",
+      "check": "c91ba49abc6fc7d7e93e87deccf0b0d82bda7bd258e7eb038cc31923b38cb408"
+    },
+    "elf": "ARMv7 EABI5 hard-float little-endian",
+    "interpreter": "/usr/lib/ld-linux-armhf.so.3",
+    "needed": [
+      "libc.so.6"
+    ],
+    "cached_image_runtime_files_present": true,
+    "live_board_runtime_verified": false
+  },
+  "arm_emulation": {
+    "status": "PASS",
+    "scope": "arm_user_emulation_only",
+    "hardware_verified": false,
+    "exit_code": 0,
+    "test_methods": 15,
+    "elapsed_seconds": 45.85,
+    "throughput_qualification": false
+  },
+  "pinned_source": {
+    "poky_commit": "4fb7016a07507683359ebd620f1951fd5ea44bfa",
+    "kernel_commit": "06644f0d7193d7ec39d7fe41939a21953e7a0c65",
+    "kernel_files_sha256": {
+      "drivers/usb/gadget/function/u_audio.c": "c1fdd4935732a823155e95343bdaaff308ee205d9313cf706f83450390177bc0",
+      "drivers/usb/gadget/function/f_uac2.c": "7267e58eab50179baef52f47e7752a10876003c9b2654f10b618ace3ff003560",
+      "arch/arm/include/asm/page.h": "21ceedb8c90dd446d0f90d12dbe5c0cf32619bf65909f16b185b8df4a95568f0"
+    },
+    "cached_config_sha256": "1a8e0801c1aa7258ff2e719348ba606c072a3dd3265b8ec202cf04c25f93ec82",
+    "cached_config": {
+      "DYNAMIC_DEBUG": false,
+      "DYNAMIC_DEBUG_CORE": false,
+      "KPROBES": true,
+      "KPROBE_EVENTS": true,
+      "DEBUG_FS": true
+    },
+    "live_configuration_verified_this_preparation": false
+  },
+  "limits": [
+    "No board access or hardware execution.",
+    "No disk-recording, USB, scheduling or electrical qualification.",
+    "Combined short host throughput is not the separate 60-second component-margin procedure.",
+    "Live comparison, independent capture supervision, waveform bank and qualified completion-error observation remain task 004 work.",
+    "Original G1 files and numeric limits are unchanged."
+  ],
+  "retained_build_failure": "Isolated gcc-cross-arm component had unresolved assembler links; compilation selected host assembler and failed. Populated recipe-sysroot-native resolves the toolchain. Failed run reports retained locally."
+}
