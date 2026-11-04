@@ -90,6 +90,37 @@ the corresponding host capture device. Use explicit ALSA hardware devices
 and matched formats; do not assume card numbers. Keep playback/recording
 errors visible. Inspect the tone recording before proceeding.
 
+### Record the bootstrap tone in Audacity
+
+For the current mono bootstrap, select ALSA as the host, OSE Audio Bench as
+the recording device, one mono channel and a 48000-Hz project sample rate.
+Use the displayed device name; its numeric card index can change.
+
+If Audacity is installed as a Snap, grant its recording/device connections:
+
+```sh
+sudo snap connect audacity:audio-record
+sudo snap connect audacity:alsa
+```
+
+Close and reopen Audacity afterward. If it still lists only a default device,
+check the Snap launcher's saved preference at
+~/snap/audacity/common/Always use PulseAudio. If that file contains
+ALWAYS_USE_PULSEAUDIO=1, change it to ALWAYS_USE_PULSEAUDIO=0 and restart
+Audacity. Then use Transport > Rescan Audio Devices if needed.
+
+Start recording in Audacity. In a separate terminal, run bbb ssh, then
+audioctl tone on the board. After about ten seconds, stop the tone with
+Ctrl+C before stopping Audacity. Export a mono 48000-Hz signed 16-bit PCM WAV
+and inspect its nonzero signal and frequency. Closing the host stream while
+speaker-test is still writing can produce a board-side I/O error; retain
+errors and their timing rather than treating every disconnect as sample loss.
+
+This generated-tone test bypasses the ADC and McASP. Audacity's internal
+floating-point track format does not increase the bootstrap's 16-bit USB
+resolution. Analog input and 24-channel/24-bit/96-kHz operation need their
+own tests.
+
 ## Add one analog input
 
 1. Qualify an ADC module using the [BOM criteria](../../hardware/bom/README.md).
