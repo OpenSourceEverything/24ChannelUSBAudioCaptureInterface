@@ -50,7 +50,11 @@ Composite operation and available endpoints require a built-kernel hardware
 test before this configuration can be called working.
 
 SSH accepts the public key selected during setup; password authentication is
-disabled. UART root login has no password in this development image. This is
+disabled. The tools recipe installs that key under the configured ROOT_HOME
+(`/root` in this baseline). When .local/ssh/known_hosts exists, the host helper
+uses those project-specific host keys. Verify a new board's SSH fingerprint
+through UART before pinning its key; never bypass a changed-host-key error.
+UART root login has no password in this development image. This is
 a bench access policy. Production credentials and USB IDs need a separate
 configuration; the current Linux Foundation VID/PID is for local development.
 
@@ -98,10 +102,15 @@ Native SD readers may report removable=0;
 they are accepted only when the kernel identifies their media as SD. Select
 the whole card, not a partition. No card is selected automatically.
 
-After verification, power off the board, insert the card and boot. If the old
-eMMC bootloader takes precedence, hold the boot button while applying power
-to select SD boot. Capture the UART boot log and confirm the new OS before
-using network/audio commands. Routine development then keeps the card in place.
+After verification, power off the board, insert the card and boot. The image
+includes uEnv.txt for the legacy 2013 BeagleBone Black eMMC bootloader, which
+does not read extlinux configuration. That bridge loads the SD zImage and
+am335x-boneblack.dtb, using this pinned device tree's SD=mmcblk0 mapping.
+It changes RAM boot settings and does not save or replace the eMMC environment.
+Modern U-Boot can use the generated extlinux/PARTUUID configuration. Hold BOOT
+while applying power when selecting the SD bootloader directly is necessary.
+Capture the UART boot log and confirm the new OS before using network/audio
+commands. Routine development then keeps the card in place.
 
 The image includes OpenSSH, ALSA tools, systemd, the audio menu, UAC2/ECM kernel
 configuration, opkg package management and 1 GiB of extra root filesystem space.
@@ -163,6 +172,18 @@ bbb ssh/deploy/install-package select it automatically.
 Ordinary code work requires no reflash. A tested kernel/boot update procedure
 is still needed; installing a kernel IPK alone is not a complete boot update.
 A production updater with interruption recovery is future work.
+
+## USB data-path diagnosis
+
+Enumeration alone does not prove USB networking or audio delivery. Check an
+actual SSH connection and a recorded nonzero test tone. Retain captures/logs
+for silent recordings, failed DHCP and controller errors.
+
+On the initial legacy-loader manual boot, restarting the musb-hdrc.0 platform
+driver restored transfers while DMA remained enabled. A subsequent automatic
+SD reboot worked without that intervention. This is a bench observation, not
+an established root cause or a production reset policy. Keep UART available
+when investigating; disconnecting that controller interrupts USB SSH/audio.
 
 ## Platform and product boundaries
 

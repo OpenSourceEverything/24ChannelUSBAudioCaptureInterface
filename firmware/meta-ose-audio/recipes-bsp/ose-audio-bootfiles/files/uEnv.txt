@@ -1,0 +1,4 @@
+# The 2013 eMMC loader imports this file from SD but cannot use extlinux.
+# This bridge is specific to BBB and the pinned DT's SD=mmcblk0 aliases.
+# It changes RAM boot settings only; it does not save the eMMC environment.
+uenvcmd=if fatload mmc 0:1 0x82000000 zImage; then if fatload mmc 0:1 0x88000000 am335x-boneblack.dtb; then setenv bootargs console=ttyS0,115200 root=/dev/mmcblk0p2 rootwait rw; bootz 0x82000000 - 0x88000000; fi; fi

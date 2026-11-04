@@ -310,6 +310,10 @@ disabled according to the development policy without publishing credentials.
 Deploy a menu edit, then a versioned application package over SSH with the
 card left in place. Observe the changed program and package version. Check
 applicable microphone-power defaults after boot.
+Verify the provisioning key is installed under the actual root account home.
+On a legacy-loader BBB, verify automatic SD boot through uEnv.txt as well as
+the first manual boot. Reboot and recheck USB SSH, menu and a nonzero host
+tone recording. A warm reboot is not a cold power-cycle qualification.
 
 PASS: the named FW requirements work on hardware with source/artifact/log
 evidence. Metadata parsing or successful compilation alone is insufficient.

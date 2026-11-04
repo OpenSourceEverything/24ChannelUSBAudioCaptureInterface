@@ -440,6 +440,9 @@ def ssh_command(host, remote=()):
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:-]*', host):
         raise RuntimeError('Give only the board IP address or hostname.')
     command = ['ssh', '-o', 'ConnectTimeout=10']
+    known_hosts = LOCAL / 'ssh/known_hosts'
+    if known_hosts.exists():
+        command += ['-o', 'UserKnownHostsFile=' + str(known_hosts)]
     private_key = LOCAL / 'ssh/id_ed25519'
     if private_key.exists():
         command += ['-i', str(private_key)]

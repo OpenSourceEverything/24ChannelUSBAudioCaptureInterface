@@ -120,6 +120,17 @@ class DeviceBoundaries(unittest.TestCase):
                     device.flash('/dev/card')
                 fetch.assert_not_called()
 
+    def test_project_host_key_is_used_without_disabling_verification(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            known_hosts = root / 'ssh/known_hosts'
+            known_hosts.parent.mkdir()
+            known_hosts.write_text('192.168.7.2 ssh-ed25519 public-key-fixture\n')
+            with patch.object(device, 'LOCAL', root):
+                command = device.ssh_command('192.168.7.2')
+            self.assertIn('UserKnownHostsFile=' + str(known_hosts), command)
+            self.assertNotIn('StrictHostKeyChecking=no', command)
+
     def test_development_image_must_still_match_build_checksum(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

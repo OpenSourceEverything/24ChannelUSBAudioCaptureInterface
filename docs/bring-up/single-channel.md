@@ -7,7 +7,8 @@ diagnostic result.
 ## Initial configuration
 
 Use a computer headphone output playing a 1-kHz sine wave as the first analog
-source. Use one channel of an assembled, documented PCM1808 ADC board. Keep
+source. Use one channel of a documented ADC board selected after the
+full-channel interface review and qualified before purchase. Keep
 microphone preamp design and guitar input buffering outside this first test.
 
 1. Play the tone through a headphone output, starting with output volume low.
