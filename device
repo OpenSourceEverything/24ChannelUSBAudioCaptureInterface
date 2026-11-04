@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Human entry point for board access and the pinned Yocto development image."""
 import argparse
+import fcntl
 import glob
 import hashlib
 import importlib.util
@@ -11,7 +12,9 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.request
+import uuid
 
 ROOT = Path(__file__).resolve().parent
 LOCAL = ROOT / '.local'
@@ -57,7 +60,7 @@ def installation_status():
     if not path.exists():
         return None
     state = json.loads(path.read_text())
-    if state['stage'] in ('BUILDING', 'CHECKING', 'WRITING'):
+    if state['stage'] in ('BUILDING', 'CHECKING', 'WRITING', 'FLUSHING', 'VERIFYING'):
         recorded = state.get('process')
         if not recorded or process_identity(recorded.get('pid')) != recorded:
             state = {**state, 'stage': 'STOPPED',
@@ -224,45 +227,213 @@ def removable_card(path, inventory, image_size):
     return card
 
 
-def flash(path, bootstrap=False):
-    image = fetch_image() if bootstrap else development_image()
+def card_selection(path, image_size, verify_only=False):
     path = str(Path(path).resolve())
     inventory = json.loads(subprocess.check_output(
         ['lsblk', '--json', '--bytes', '--paths', '-o',
-         'NAME,PATH,TYPE,RM,SIZE,MOUNTPOINTS'], text=True))
-    card = removable_card(path, inventory, image.stat().st_size)
-    print(f'Writing {image.name} to {path} ({card["size"]} bytes).', flush=True)
+         'NAME,PATH,TYPE,RM,RO,SIZE,MOUNTPOINTS', path], text=True))
+    card = removable_card(path, inventory, image_size)
+    if card.get('ro') and not verify_only:
+        raise RuntimeError('Card is write-protected. Check the adapter LOCK switch, reinsert, then retry. No rebuild needed.')
+    media = Path('/sys/class/block') / Path(path).name
+    selection = {'path': path, 'size': int(card['size']),
+                 'diskseq': int((media / 'diskseq').read_text())}
+    if (media / 'device/cid').exists():
+        selection['cid'] = (media / 'device/cid').read_text().strip()
+    return card, selection
+
+
+def flash(path, bootstrap=False, *, selection=None, image_record=None,
+          verify_only=False, progress=None, container_name=None):
+    if image_record is None:
+        image = fetch_image() if bootstrap else development_image()
+        image_record = {'path': str(image), 'sha256': digest(image),
+                        'size': image.stat().st_size}
+    else:
+        image = Path(image_record['path'])
+        if image.stat().st_size != image_record['size'] or digest(image) != image_record['sha256']:
+            raise RuntimeError('Selected image changed. No card write attempted.')
+    card, current = card_selection(path, image.stat().st_size, verify_only)
+    if selection is not None and current != selection:
+        raise RuntimeError('Card changed after selection. No write attempted; select it again.')
+    path = current['path']
     pending = [card]
     while pending:
         item = pending.pop()
         if any(item.get('mountpoints') or []):
             run(['udisksctl', 'unmount', '-b', item['path']])
         pending.extend(item.get('children') or [])
-    writer = '''
-import hashlib, os, shutil, sys
-image, target, expected = sys.argv[1:]
-size = os.path.getsize(image)
-with open(image, 'rb') as source, open(target, 'r+b', buffering=0) as destination:
-    shutil.copyfileobj(source, destination, 1024 * 1024)
-    os.fsync(destination.fileno())
-with open(target, 'rb', buffering=0) as check:
-    digest = hashlib.sha256()
-    remaining = size
-    while remaining:
-        chunk = check.read(min(1024 * 1024, remaining))
-        if not chunk:
-            raise SystemExit('Read-back ended early; do not boot this card.')
-        digest.update(chunk)
-        remaining -= len(chunk)
-    if digest.hexdigest() != expected:
-        raise SystemExit('Read-back checksum failed; do not boot this card.')
-print('Card write and read-back checksum passed.')
-'''
-    expected = digest(image)
-    run(['docker', 'run', '--rm', '--network', 'none', '--read-only',
-         '--device', path, '--mount', f'type=bind,source={image},target=/image.wic,readonly',
-         'python:3.14.4-slim', 'python3', '-c', writer, '/image.wic', path, expected])
-    print('Remove the card from the reader and put it in the powered-off BeagleBone.')
+    # Recheck after unmounting; the container also checks the opened disk's sequence.
+    _, after_unmount = card_selection(path, image.stat().st_size, verify_only)
+    if current != after_unmount:
+        raise RuntimeError('Card changed during preparation. No write attempted.')
+    container_name = container_name or 'ose-card-' + uuid.uuid4().hex
+    command = ['docker', 'run', '--rm', '--name', container_name, '--network', 'none',
+               '--read-only', '--device', f'{path}:{path}:' + ('r' if verify_only else 'rw'),
+               '--mount', f'type=bind,source={image.resolve()},target=/image.wic,readonly',
+               '--mount', f'type=bind,source={ROOT / "tools/card_io.py"},target=/card_io.py,readonly',
+               'python:3.14.4-slim', 'python3', '/card_io.py', '/image.wic', path,
+               image_record['sha256'], '--diskseq', str(current['diskseq'])]
+    if verify_only:
+        command.append('--verify-only')
+    result = None
+    failure_message = None
+    with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                          text=True) as child:
+        try:
+            for line in child.stdout:
+                print(line.rstrip(), flush=True)
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get('stage') == 'VERIFIED':
+                    result = event
+                if event.get('stage') == 'ERROR':
+                    failure_message = event.get('message')
+                if progress:
+                    progress(event)
+            code = child.wait()
+            if code or not result:
+                raise RuntimeError(failure_message or 'Card job failed. Do not boot the card; see the saved job log.')
+        finally:
+            if child.poll() is None:
+                subprocess.run(['docker', 'rm', '-f', container_name],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+    if result['sha256'] != image_record['sha256'] or result['verified_bytes'] != image_record['size']:
+        raise RuntimeError('Incomplete card verification. Do not boot the card.')
+    return result
+
+
+def save_card_state(state, receipt=None):
+    LOCAL.mkdir(exist_ok=True)
+    state = {**state, 'updated_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
+    for path in ([receipt] if receipt else []) + [LOCAL / 'install-status.json']:
+        temporary = path.with_suffix('.tmp')
+        temporary.write_text(json.dumps(state, indent=2) + '\n')
+        temporary.replace(path)
+
+
+def notify_card_result(state):
+    if not shutil.which('notify-send'):
+        return False
+    try:
+        result = subprocess.run(['notify-send', '--app-name=BeagleBone audio',
+                                 '--urgency=' + ('normal' if state['stage'] == 'READY' else 'critical'),
+                                 'SD card ready' if state['stage'] == 'READY' else 'SD card job failed',
+                                 state['message'] + ' ' + state['next_action']],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def card_worker(job_path):
+    job = json.loads(Path(job_path).read_text())
+    receipt = Path(job_path).with_suffix('.result.json')
+    with (LOCAL / 'card-install.lock').open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError('Another card job is active; no write attempted.')
+        state = {'job_id': job['job_id'], 'stage': 'CHECKING',
+                 'message': 'Checking the selected image and card. No image rebuild.',
+                 'process': process_identity(os.getpid()), 'next_action': None,
+                 'card': job['selection'], 'image': job['image'], 'log': job['log']}
+        save_card_state(state)
+
+        def progress(event):
+            labels = {'WRITING': 'Writing the image; keep the card inserted.',
+                      'FLUSHING': 'Flushing writes to the card; keep it inserted.',
+                      'VERIFYING': 'Reading the image back and checking SHA-256.',
+                      'ERROR': event.get('message', 'Card transfer failed.')}
+            if event.get('stage') in labels:
+                state.update(event)
+                state['message'] = labels[event['stage']]
+                save_card_state(state)
+
+        try:
+            result = flash(job['selection']['path'], selection=job['selection'],
+                           image_record=job['image'], verify_only=job['verify_only'],
+                           progress=progress, container_name='ose-card-' + job['job_id'])
+            state.update(result)
+            state.update(stage='READY', message='Card read-back SHA-256 matches the selected image.',
+                         next_action='Move the card into the powered-off BeagleBone; then boot from SD.')
+        except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+            state.update(stage='ERROR', message=str(error),
+                         next_action='Keep the card in the reader. Check bbb status and the saved log before retrying.')
+        state['notification_sent'] = notify_card_result(state)
+        save_card_state(state, receipt)
+        return 0 if state['stage'] == 'READY' else 1
+
+
+def start_card_job(path, bootstrap=False, verify_only=False, wait=False):
+    active = installation_status()
+    if active and active['stage'] in ('BUILDING', 'CHECKING', 'WRITING', 'FLUSHING', 'VERIFYING'):
+        raise RuntimeError('An installation job is already running. Use bbb status; no second write started.')
+    if bootstrap:
+        image = fetch_image()
+        record = {'path': str(image), 'sha256': digest(image), 'size': image.stat().st_size}
+    else:
+        manifest = LOCAL / 'image-ready.json'
+        if not manifest.exists():
+            raise RuntimeError('No completed development image. Run bbb build first.')
+        record = json.loads(manifest.read_text())
+        record['path'] = str(Path(record['path']).resolve())
+        record['size'] = Path(record['path']).stat().st_size
+    _, selection = card_selection(path, record['size'], verify_only)
+    folder = LOCAL / 'card-jobs'
+    folder.mkdir(parents=True, exist_ok=True)
+    job_id = uuid.uuid4().hex
+    job_path = folder / (job_id + '.json')
+    log = folder / (job_id + '.log')
+    job = {'job_id': job_id, 'selection': selection, 'image': record,
+           'verify_only': verify_only, 'log': str(log)}
+    job_path.write_text(json.dumps(job, indent=2) + '\n')
+    run(['systemd-run', '--user', '--collect', '--unit=ose-audio-card-io', '--service-type=exec',
+         '--property=KillMode=control-group', f'--property=WorkingDirectory={ROOT}',
+         f'--property=StandardOutput=append:{log}', '--property=StandardError=inherit',
+         f'--property=ExecStopPost={sys.executable} "{ROOT / "device"}" _card-stopped "{job_path}"',
+         sys.executable, str(ROOT / 'device'), '_card-worker', str(job_path)])
+    print('Card job started in the background. No image rebuild. Use bbb status for progress.', flush=True)
+    print('A desktop notification and saved result report completion or failure.', flush=True)
+    print('Result:', job_path.with_suffix('.result.json'), flush=True)
+    if wait:
+        receipt = job_path.with_suffix('.result.json')
+        started = time.monotonic()
+        while not receipt.exists():
+            state = installation_status()
+            if state and state.get('job_id') == job_id and state['stage'] == 'STOPPED':
+                raise RuntimeError(state['message'])
+            if time.monotonic() - started > 60 and (not state or state.get('job_id') != job_id):
+                raise RuntimeError(f'Card worker did not report startup. See {log}')
+            time.sleep(1)
+        state = json.loads(receipt.read_text())
+        print(state['message'])
+        if state['stage'] != 'READY':
+            raise RuntimeError(f'Card job failed. See {log}')
+    return job_id
+
+
+def card_stopped(job_path):
+    """Systemd cleanup also records an interrupted worker's failed outcome."""
+    job = json.loads(Path(job_path).read_text())
+    cleanup_error = ''
+    try:
+        subprocess.run(['docker', 'rm', '-f', 'ose-card-' + job['job_id']],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        cleanup_error = ' Container cleanup could not be confirmed; keep the card inserted.'
+    receipt = Path(job_path).with_suffix('.result.json')
+    if receipt.exists():
+        return 0
+    state = {'job_id': job['job_id'], 'stage': 'ERROR',
+             'message': 'Card job stopped before successful verification.' + cleanup_error,
+             'next_action': 'Keep the card in the reader. Inspect the saved log before retrying.',
+             'log': job['log'], 'card': job['selection'], 'image': job['image']}
+    state['notification_sent'] = notify_card_result(state)
+    save_card_state(state, receipt)
+    return 0
 
 
 def ssh_command(host, remote=()):
@@ -305,6 +476,10 @@ opkg install "$update/package.ipk"
 
 
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == '_card-worker':
+        return card_worker(sys.argv[2])
+    if len(sys.argv) == 3 and sys.argv[1] == '_card-stopped':
+        return card_stopped(sys.argv[2])
     parser = argparse.ArgumentParser(description='Talk to the board and build its Yocto image.')
     actions = parser.add_subparsers(dest='action', required=True)
     console = actions.add_parser('console', help='Open the UART terminal; exit with Ctrl+].')
@@ -312,9 +487,11 @@ def main():
     actions.add_parser('status', help='Show the connected UART and local firmware state.')
     actions.add_parser('install-cli', help='Install the bbb shortcut without replacing another command.')
     actions.add_parser('fetch-image', help='Download the optional minimal reference/rescue image.')
-    writer = actions.add_parser('flash', help='Write the completed development image to an explicitly selected card.')
+    writer = actions.add_parser('flash', help='Write and verify a selected card in the background; notify when done.')
     writer.add_argument('card', help='Whole removable card, for example /dev/sdb.')
     writer.add_argument('--bootstrap', action='store_true', help='Use the minimal reference image for boot diagnosis instead.')
+    writer.add_argument('--verify-only', action='store_true', help='Read-back verification only; do not write the card.')
+    writer.add_argument('--wait', action='store_true', help='Wait for the saved result and return its success/failure exit code.')
     configure = actions.add_parser('setup', help='Fetch pinned Yocto sources and configure the image.')
     configure.add_argument('--public-key')
     build = actions.add_parser('build', help='Build our bootable Yocto image.')
@@ -349,6 +526,11 @@ def main():
             if state:
                 print('Card installation:', state['stage'])
                 print(state['message'])
+                if state.get('bytes_total') and state['stage'] in ('WRITING', 'VERIFYING'):
+                    print(f'Progress: {state["bytes_done"] / state["bytes_total"]:.1%} '
+                          f'({state["bytes_done"]:,}/{state["bytes_total"]:,} bytes)')
+                if state.get('log'):
+                    print('Log:', state['log'])
                 if state.get('next_action'):
                     print('Next:', state['next_action'])
         elif args.action == 'install-cli':
@@ -356,7 +538,8 @@ def main():
         elif args.action == 'fetch-image':
             fetch_image()
         elif args.action == 'flash':
-            flash(args.card, bootstrap=args.bootstrap)
+            start_card_job(args.card, bootstrap=args.bootstrap,
+                           verify_only=args.verify_only, wait=args.wait)
         elif args.action == 'setup':
             setup(args.public_key)
         elif args.action == 'build':

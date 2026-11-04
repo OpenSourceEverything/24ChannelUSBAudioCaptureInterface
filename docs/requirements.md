@@ -312,6 +312,14 @@ or a successful file upload alone does not prove the updated program runs.
   new interface requirement on the BeagleBone.
   Verification: [TEST-006](test-procedures.md#test-006-continuous-recording).
 
+- FW-008: Initial card installation shall reuse the completed image and run
+  writing, flushing and read-back verification without assistant polling.
+  Preserve progress, logs and a terminal result; notify the desktop when
+  available. Require an explicitly selected card, bind its identity, reject
+  write protection and report interruption/failure. READY requires a complete
+  matching image checksum; routine application deployment still avoids flashing.
+  Verification: [TEST-015](test-procedures.md#test-015-unattended-card-installation).
+
 - PRD-001: Maintain reproducible hardware sources, firmware configuration,
   build/install instructions, schematics, connector definitions, and a BOM
   with exact approved manufacturer parts or module revisions.

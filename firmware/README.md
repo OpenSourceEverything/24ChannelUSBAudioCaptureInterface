@@ -28,6 +28,7 @@ directory when ~/.local/bin is on PATH:
 | bbb deploy | Send the current audioctl script over SSH without flashing or rebooting. |
 | bbb build | Build the complete development image on the computer. |
 | bbb status | Show board/build information and any active card-installation status. |
+| bbb flash CARD | Start background image writing and read-back verification on the explicitly selected card. |
 
 Active installation status is checked against the running process. A stopped
 job is reported as STOPPED rather than retaining an old BUILDING/WRITING label.
@@ -73,9 +74,27 @@ If absent, setup creates a project key under .local/ssh. Private keys never
 enter the layer or Git. A successful build records its image path and checksum
 in .local/image-ready.json; flash selects that completed image.
 
-Flash erases the selected card. It requires Linux, Docker and udisksctl,
+Flash erases the selected card. It requires a Linux host with disk-sequence
+support, a running systemd user session, Docker and udisksctl,
 rejects partitions, fixed disks/eMMC and mounted host filesystems, and verifies
-the written image by reading it back. Native SD readers may report removable=0;
+the written image by reading it back. It reuses the completed image without a
+build, runs independently of the terminal/chat, and saves CHECKING, WRITING,
+FLUSHING, VERIFYING and READY/error states. Run bbb status for progress; a
+desktop notification reports the outcome when notifications are available.
+The saved result remains available even if desktop notification is unavailable.
+Keep the computer awake and your user session logged in until completion.
+
+Each run retains its selected image checksum, card identity, log and result
+under .local/card-jobs/. Replacing/reinserting a card after job selection aborts
+the job; an opened-device sequence check runs before writing. Write-protected
+cards stop with an unlock/reinsert instruction. A stopped worker cannot count
+as successful verification; its container is stopped and failure is recorded.
+READY requires a complete matching SHA-256 read-back, after writes are flushed.
+Use bbb flash CARD --wait for scripts that need a success/failure exit code;
+bbb flash CARD --verify-only checks an existing card without writing it.
+Neither command rebuilds the image. Do not start a second job on the same card.
+
+Native SD readers may report removable=0;
 they are accepted only when the kernel identifies their media as SD. Select
 the whole card, not a partition. No card is selected automatically.
 

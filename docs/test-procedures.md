@@ -345,6 +345,29 @@ Test enumeration, channel count, actual format, recording and recovery on
 that exact host. Label any reduced UAC1 mode separately. PASS only for the
 demonstrated combination; this test does not gate Linux development.
 
+## TEST-015: Unattended card installation
+
+Equipment: Linux build host, completed checked image, explicitly identified
+spare card/reader and the host-side test suite. Use temporary regular-file
+fixtures for deliberate corruption/truncation tests, never a live boot disk.
+
+1. Run the host suite. Verify corruption, short read-back, target replacement,
+   write protection, interrupted workers and missing/wrong success records
+   cannot produce READY. Confirm verify-only leaves fixture bytes unchanged.
+2. Start bbb flash CARD. Observe saved progress through write, flush and verify;
+   the command returns while the systemd job continues. Leave the terminal
+   closed during the job; keep the host awake and user session logged in.
+3. Inspect the saved result/log and desktop completion notification. Verify
+   exact image byte count/SHA-256 and card identity. Notification availability
+   is reported separately; a missing notification must not hide the result.
+4. Use --wait for an exit-code-driven script, and --verify-only to exercise
+   the actual read-back path without another write or image build. With a
+   disposable fixture/job, stop the worker and verify cleanup and failure.
+
+PASS: FW-008 holds, with no assistant status polling or new image build needed
+to complete the job. Host fixtures and read-only hardware checks are partial
+evidence for the background write path; record each executed scenario.
+
 ## Requirement coverage
 
 The table below maps every requirement ID to repeatable verification. Each
@@ -386,6 +409,7 @@ solely because its procedure exists. Results belong in a dated bench report.
 | FW-005 | [TEST-012](#test-012-development-turnaround-and-build-independence) |
 | FW-006 | [TEST-012](#test-012-development-turnaround-and-build-independence) |
 | FW-007 | [TEST-006](#test-006-continuous-recording) |
+| FW-008 | [TEST-015](#test-015-unattended-card-installation) |
 | PRD-001 | [TEST-013](#test-013-product-evidence-and-release-gates) |
 | PRD-002 | [TEST-010](#test-010-errors-interruption-and-recovery) |
 | PRD-003 | [TEST-013](#test-013-product-evidence-and-release-gates) |
