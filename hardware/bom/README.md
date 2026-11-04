@@ -6,11 +6,19 @@ manufacturer BOM. Exact part numbers and module revisions must replace generic
 descriptions after technical qualification. A cheap module with the right chip
 name can still have an unsuitable clock or input circuit.
 
-Use one input of a documented two-channel PCM1808 ADC module for the first
-line-level integration prototype. It is not the proposed production converter:
-its analog performance falls short of the new LINE quality targets. See
-[input requirements](../../docs/requirements/analog-inputs.md) and
-[ADC selection evidence](../../docs/research/adc-selection.md).
+Purchase status: HOLD until the USB baseline and full-channel interface review
+are complete. Compare candidate converter banks against the complete-input
+performance targets, clock alignment, board pin/driver support and total cost.
+Prefer representative multichannel test hardware when practical; no converter
+manufacturer or chip channel count is required by the product specification.
+See the [feasibility review](../../docs/research/beaglebone-multichannel-feasibility.md).
+
+TI PCM1808EVM remains an optional two-channel diagnostic candidate, not a
+recommended purchase at this stage and not evidence for 24-channel capture.
+Its manufacturer guide [SBAU349](https://www.ti.com/lit/pdf/SBAU349) supplies
+schematics and bench access, but its analog performance falls short of the
+provisional production targets. See [requirements](../../docs/requirements.md)
+and [ADC selection evidence](../../docs/research/adc-selection.md).
 The chip supports 24-bit conversion at up to 96 kHz;
 the complete module must separately meet all of the following:
 
@@ -31,9 +39,11 @@ the complete module must separately meet all of the following:
 Reference: [TI PCM1808 product documentation](https://www.ti.com/product/PCM1808).
 An evaluation board with a complete schematic may reduce integration uncertainty
 even if its initial cost is higher. No module is approved by chip-name matching.
-The documented PCM1808EVM's fitted crystal is 12.288 MHz; the 96-kHz/256-fs
+The documented PCM1808EVM's fitted crystal is 12.288 MHz, supporting the
+48-kHz/256-fs first test without another clock purchase. The 96-kHz/256-fs
 configuration needs a 24.576-MHz source through its external-clock selection.
-CLK-001 covers that conditional requirement; do not omit it from total cost.
+CLK-001 is deferred. Check whether the BeagleBone board clock can supply the
+qualified reference before adding a separate oscillator to an order.
 
 The initial analog source is a known low-level line output or signal generator.
 A separate microphone preamp is optional. If used, its maximum output must fit

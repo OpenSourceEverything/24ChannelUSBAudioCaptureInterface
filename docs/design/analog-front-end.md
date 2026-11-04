@@ -2,7 +2,7 @@
 
 ## Functions and boundaries
 
-The [proposed input contract](../requirements/analog-inputs.md) now calls for
+The [proposed input contract](../requirements.md#analog-input-requirements) now calls for
 one combo socket with MIC, LINE and INSTRUMENT modes per channel. It defines
 the source impedance, gain, headroom and quality targets that drive this
 circuit. Keep the first bench milestone to one known LINE tone. The

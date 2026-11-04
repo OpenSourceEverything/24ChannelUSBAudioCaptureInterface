@@ -137,4 +137,4 @@ ALSA hardware parameters, USB descriptors and speed, mapping, recording length,
 error counts, and waveform/spectrum observations. Test source on/off and a
 frequency or level change so a synthetic or unrelated host source cannot be
 mistaken for the analog input. Follow the staged endurance requirements in
-[Product Requirements](../requirements/README.md#staged-acceptance).
+[Product Requirements](../requirements.md#staged-acceptance).

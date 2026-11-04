@@ -17,7 +17,7 @@
 ```
 
 The first prototype exercises only a known line source. Full source coverage
-requires the [input requirements](../requirements/analog-inputs.md), including
+requires the [input requirements](../requirements.md#analog-input-requirements), including
 separate microphone and guitar conditioning. A combo connector alone does
 not supply these functions. The reusable front-end module boundary remains
 to be defined; external preamps can feed LINE mode.
@@ -38,8 +38,12 @@ per ADC on three receive serializers, with common clock/frame signals.
 TDM means time-division multiplexing: channels occupy successive slots on a
 serial data wire. At eight 32-bit slots and 96 kHz, each lane needs a
 24.576-MHz bit clock. A single 24-slot lane needs 73.728 MHz; padding to 32
-slots needs 98.304 MHz. Neither a single combined lane nor a three-device
-daisy chain is assumed to work.
+slots needs 98.304 MHz. A single full-rate combined lane exceeds the AM335x clock limit; any
+daisy-chain alternative requires a separate supported timing/topology review.
+
+The [source-level feasibility review](../research/beaglebone-multichannel-feasibility.md)
+identifies a candidate three-lane pin map, HDMI/shared-pin conflicts, the
+pinned driver limits and remaining runtime checks. It is not physical proof.
 
 The exact board must expose the required McASP signals, and its kernel driver
 must support the selected serializer/slot arrangement. HDMI shares audio

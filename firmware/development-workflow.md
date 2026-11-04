@@ -33,25 +33,12 @@ SDK. Update it when the target toolchain or required development libraries
 change. Keep an application recipe so a clean image can reproduce the same
 software; an SDK-only local change must not become an undocumented dependency.
 
-## Initial acceptance targets
+## Verify development turnaround
 
-These are development goals, not measured performance claims. Measure them
-after the first source-built image boots and network access works.
-
-| Scenario | Goal | Measurement boundary |
-| --- | --- | --- |
-| One menu-message edit | At most 60 seconds | Start deployment through observing the changed menu on the board; no image write or reboot. |
-| Small application edit with dependencies and SDK already present | At most 120 seconds | Start incremental compilation through observing the updated application on the board; no complete image rebuild. |
-| Incremental driver/kernel change | Establish a measured baseline before setting a limit | Record build, transfer and restart/reboot separately. |
-| Full image/SDK build | Background operation with visible live/error status | Record elapsed time, changed baseline, cache reuse and host resources. |
-
-For each run record the source and baseline commits, host CPU/RAM/storage,
-cold or warm cache, exact command, elapsed build/transfer/restart time and
-seconds the board or recording was unavailable. Repeat a representative warm
-edit to distinguish a slow first setup from the normal development loop.
-
-The acceptance check must exercise the real board. An empty compiler benchmark
-or a successful file upload alone does not prove the updated program runs.
+The [development turnaround requirements](../docs/requirements.md#development-turnaround)
+contain the targets and measurement boundaries. Verify them on the commissioned
+board after network login works; retain the commands, timings and observed
+program output with each result.
 
 ## Preserve and narrow the build
 

@@ -5,7 +5,7 @@ for ordinary code changes: log in and send updates over USB networking or
 Ethernet. A 16 GB card is sufficient. The large compiler build runs on the
 computer, not the BeagleBone.
 
-The [development turnaround requirements](development-workflow.md) define
+The [development turnaround requirements](../docs/requirements.md#development-turnaround) define
 the normal edit/test path, initial timing targets, cache retention and when
 a separate faster builder is justified.
 

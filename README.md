@@ -20,12 +20,16 @@ prompt, enter root. See the [Yocto baseline and board controls](firmware/README.
 for the pinned build, initial SD installation, USB SSH access and the on-board
 audio menu. After installation, use bbb deploy to update the menu without
 removing the card.
-Establish this firmware baseline and its USB tone before buying analog parts.
+Establish this firmware baseline and its USB tone before wiring the ADC.
+Review the full-channel pin/clock/driver/USB path before any analog purchase.
+The first analog test uses a known line source; representative multichannel
+hardware is preferred once its interface is qualified.
 
 ## Product documents
 
-- [Product requirements](docs/requirements/README.md)
-- [MIC/LINE/INSTRUMENT input requirements](docs/requirements/analog-inputs.md)
+- [Product requirements](docs/requirements.md)
+- [Repeatable test procedures and requirement coverage](docs/test-procedures.md)
+- [BeagleBone pin/clock/driver feasibility review](docs/research/beaglebone-multichannel-feasibility.md)
 - [Input-driven ADC selection research](docs/research/adc-selection.md)
 - [Architecture and bandwidth constraints](docs/design/architecture.md)
 - [Single-channel integration procedure](docs/bring-up/single-channel.md)

@@ -1,10 +1,17 @@
 # Input-Driven ADC Selection
 
 Research date: 2026-11-03. Recommendation: establish the
-[MIC/LINE/INSTRUMENT input contract](../requirements/analog-inputs.md) first.
-Use a documented PCM1808 board only to prove one analog channel; evaluate
-AK5558VN first for the production eight-channel bank. No exact module or
-production converter is approved by this research.
+[MIC/LINE/INSTRUMENT input contract](../requirements.md#analog-input-requirements) first.
+Purchase recommendation: HOLD. Finish the USB baseline and full-channel
+pin/clock/driver review before selecting hardware. Prefer a representative
+multichannel bank once the exact interface is qualified. PCM1808EVM remains
+an optional stereo diagnostic board; it cannot validate the 24-channel
+architecture or establish production converter selection.
+
+No manufacturer or chip channel count is mandated. The [feasibility review](beaglebone-multichannel-feasibility.md)
+records source-level support and unresolved physical/driver checks. The
+[procedures](../test-procedures.md) define independent evidence for analog
+quality, USB transport, DMA, clock alignment and endurance.
 
 ## Translate the input contract
 
@@ -53,8 +60,14 @@ Distortion products need a separate budget and can add coherently.
 | Candidate | Interface / analog input | Manufacturer evidence | Decision |
 | --- | --- | --- | --- |
 | TI PCM1808 | Two channels; 24-bit I2S/LJ; single-ended 3-V peak-to-peak chip input at 5-V analog supply | At 96 kHz: typical 101-dBA dynamic range and -87-dB THD+N; the latter measured at -0.5 dBFS with 400-Hz HPF/20-kHz LPF. | Integration prototype only. Fails the proposed production LINE quality targets even before adding analog circuitry. |
-| AKM AK5558VN | Eight differential channels; 24/32-bit PCM including TDM256 at 96 kHz | 115-dBA typical dynamic range in unsummed mode under default 48-kHz conditions. At 96 kHz, typical S/(N+D) 106 dB at -1 dBFS, 40-Hz–40-kHz bandwidth. | First production candidate to evaluate: matches the provisional eight-channel-bank topology. Need 96-kHz noise characterization and complete input-stage budget. |
+| AKM AK5558VN | Eight differential channels; 24/32-bit PCM including TDM256 at 96 kHz | 115-dBA typical dynamic range in unsummed mode under default 48-kHz conditions. At 96 kHz, typical S/(N+D) 106 dB at -1 dBFS, 40-Hz–40-kHz bandwidth. | Multichannel candidate: matches one provisional serializer topology; not selected. Need 96-kHz noise characterization and complete input-stage budget. |
 | AKM AK5578EN | Eight differential channels; AKM describes pin/register compatibility with AK5558VN | 121-dBA typical unsummed dynamic range under default 48-kHz conditions. At 96 kHz, typical S/(N+D) 110 dB at -1 dBFS, 40-Hz–40-kHz bandwidth. | Higher-margin alternative if complete-bank cost and availability justify it. Still needs board-level qualification. |
+| Cirrus CS5308P | Eight differential channels; 32-bit converter family | Manufacturer catalog: active; 123-dBA dynamic range and -110-dB THD+N headline values. Exact 96-kHz conditions, serial timing and multi-chip alignment still need datasheet review. | Independent-vendor candidate for the same bank-size experiment; qualify supplies, interface/driver and complete evaluation-board cost before selection. |
+| TI PCM4204 | Four differential channels; 24-bit PCM including TDM | Manufacturer specifies 118-dB dynamic range and -105-dB THD+N headline values; exact 96-kHz conditions require comparison. | Alternative package size. Six devices would need a compatible lane/cascade arrangement, rather than assuming six independent RX pins exist. |
+
+Additional manufacturer sources: [Cirrus ADC catalog](https://www.cirrus.com/product-category/a-d-converters),
+[TI PCM4204](https://www.ti.com/product/PCM4204). Catalog figures are screening
+evidence, not comparable 96-kHz system measurements or a purchase qualification.
 
 S/(N+D) is signal relative to noise plus distortion; the table's positive
 106/110-dB ratios correspond to negative THD+N dB ratios. The measurement
@@ -96,15 +109,17 @@ ADC's serial audio interface to the BeagleBone.
 
 ## Next engineering gate
 
-1. Finish the Yocto/USB generated-tone baseline.
-2. Qualify one exact assembled PCM1808 board and its clock arrangement against
-   [ADC-001/CLK-001 in the prototype BOM](../../hardware/bom/single-channel.csv).
-   Record landed price, lead time and missing circuitry before recommending
-   an order. A cheaper unsupported board is still an unqualified board.
-3. Capture a scope-checked 1-kHz line tone locally, then in the Linux host
-   recorder; change its physical frequency/level and repeat at 96 kHz.
-4. Develop one reusable MIC/LINE/INSTRUMENT front-end channel, measuring
-   loading, gain, clipping and noise before replicating it. Freeze its
-   electrical interface before making a separate repository a dependency.
-5. Qualify an eight-channel production converter bank and its synchronization,
-   analog quality, power and cost before extending to 24 channels.
+1. Finish Yocto boot/login and the generated USB tone. Exercise generated
+   24-channel target-format USB patterns separately from analog hardware.
+2. Close paper compatibility: exact pins/shared nets, clock timing/ownership,
+   receive-serializer and CPU/codec/DMA constraints, module schematic, input
+   conditioning, logic/power limits and total cost. Resolve unknowns before
+   recommending an order; keep every current candidate on hold.
+3. Select representative multichannel test hardware when practical. A stereo
+   board may isolate an integration fault, but does not pass the architecture
+   gate. Full physical capture proof requires appropriate test hardware.
+4. Test one bank and shared reset/clock alignment early, then all receive lanes
+   and 24-channel host transport. Use a known LINE source first; qualify one
+   reusable MIC/LINE/INSTRUMENT channel before replicating front ends.
+5. Follow the staged endurance and complete-input performance procedures.
+   No datasheet number or advertised sample width counts as a system result.
