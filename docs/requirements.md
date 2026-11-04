@@ -43,9 +43,36 @@ samples between that peripheral and memory; ALSA is Linux's audio interface.
 | USB-003 | One analog input shall be recordable in Audacity or an equivalent Linux application as the first end-to-end milestone. | Record an externally supplied tone and speech/music where appropriate; verify the file is non-silent and matches the physical input. [TEST-001](test-procedures.md#test-001-channel-count-and-format) |
 | USB-004 | Firmware shall advertise only configurations that fit its actual endpoint, controller, FIFO, and clock-handling capabilities. Nominal bus speed alone is insufficient. | Audit packet calculations/descriptors and sustain the advertised stream without loss. [TEST-008](test-procedures.md#test-008-usb-path-packet-budget-and-clock-rate-handling) |
 | USB-005 | The implementation shall manage the rate difference between the audio clock and USB host timing without unbounded buffer growth or hidden sample deletion. | Monitor buffer occupancy and sample continuity during extended capture. [TEST-008](test-procedures.md#test-008-usb-path-packet-budget-and-clock-rate-handling), [TEST-006](test-procedures.md#test-006-continuous-recording) |
+| USB-006 | Before an analog hardware buying recommendation, the generated 24-channel/96-kHz/24-valid-bit USB path shall preserve every compared sample and channel identity through the host recording. Validate the checker using independently specified reference vectors and deliberate corruption. Explicitly bound startup/shutdown exclusions; counters, a file checksum or tone frequency alone do not establish integrity. | [TEST-008](test-procedures.md#test-008-usb-path-packet-budget-and-clock-rate-handling) |
+| USB-007 | Characterize throughput, buffer reserve and load limits at the intended USB format against the proposed [stage profile](#generated-usb-stage-test-profile), plus FW-007's storage preflight. Report each boundary separately; no 2× USB capacity or analog-voltage requirement is implied. | [TEST-008](test-procedures.md#test-008-usb-path-packet-budget-and-clock-rate-handling), [TEST-006](test-procedures.md#test-006-continuous-recording) |
 
 A generated digital tone can verify the USB/software path. It does not satisfy
 USB-003 or prove analog capture.
+
+### Generated USB-stage test profile
+
+The following USB-006/007 thresholds are proposed for G1 peer review. They
+are neither measured capacity nor final product guarantees. TEST-008 supplies
+the execution and evidence method; changes to targets belong here.
+
+| Check | Proposed engineering threshold |
+| --- | --- |
+| Format ramp | Known-data runs of at least 60 s each at 1 channel/96 kHz, 8/96 kHz, 24/48 kHz and 24/96 kHz, all with 24 valid bits and three-byte USB subslots. Only the final setting qualifies the target. |
+| Pattern bank | Every TEST-008 pattern family at 24/96k for at least 60 s; every compared value correct, with documented bit/channel coverage. |
+| Nominal / loaded capture | At least 30 min nominal and 60 min with the predefined concurrent board/host/drive workload; all 24 channels compared throughout. |
+| Software rate variation | At least 10 min each at -100/0/+100 ppm using a qualified mechanism; this provisional range must be reviewed against the eventual clock tolerance. |
+| Component processing margin | Board pattern generation and host unpack/checking each achieve at least 2× realtime in separate bounded component benchmarks of at least 60 s after warm-up. This excludes USB and disk performance. |
+| Buffer reserve | At each critical-path service-gap entry, the relevant queued/free reserve covers at least twice the worst measured combined gap for that path. Record instrumentation bounds and queue direction; sampled occupancy alone is insufficient. |
+| Comparison boundaries | Explicit start/end markers, no interior exclusions; proposed maximum unverified startup and shutdown intervals are 2 s each. Timed run durations count only compared data. |
+| Recovery | At least three executions per TEST-008 recovery case, each followed by a fresh 60-s identity check; expected disruption is labeled and does not count as continuous operation. |
+
+Load commands/rates, supported clock control, exact pattern definition,
+reference vectors and reliable buffer instrumentation are execution
+prerequisites, not values to invent during a run. Missing prerequisites block
+their subtests. A reviewer may reject or revise these proposals with reasons;
+any failure/inconclusive margin result needs a recorded disposition before
+advancing. No 24-hour run is required to complete this early USB-only gate;
+the full-device 24-hour target remains ADC-007.
 
 ## Provisional capture performance targets
 
@@ -216,12 +243,34 @@ clock wiring short and provide nearby ground access for probing.
 Initial engineering acceptance targets below are requirements for development;
 they are not existing test results or final product performance claims.
 
+### Current review gate: G1
+
+Before further BeagleBone configuration/bench experiments or an equipment
+buying recommendation, obtain an external review of the current USB-stage
+requirements and TEST-008, TEST-010 and TEST-009's paper-interface portion.
+Use the [focused review addendum](reviews/usb-stage-review.md) with this file
+and the single test-procedures document. Record the reviewed revisions,
+findings, resolutions and the owner's acceptance of the review disposition.
+Unresolved blocking findings keep G1 on HOLD. Preparing documents and host-only
+test fixtures does not close this gate or authorize a purchase.
+
+After G1 closes, complete the generated-channel tests below. Their USB-stage
+PASS and the paper ADC/interface review permit a concrete bench-equipment
+recommendation; purchase remains a separate owner decision. A review is not
+a substitute for those physical tests. Any failed/inconclusive margin target
+needs an explicit review disposition before advancing.
+
+### Execution sequence after review
+
 1. USB path: a generated tone reaches a Linux recorder through the BeagleBone
    USB audio device. A 48-kHz/16-bit bootstrap is permitted.
 2. Architecture gate before purchase: document exact board pins, shared-pin
    conflicts, clock ownership/timing budget, serial format, pinned-kernel
    channel/DMA constraints and ADC electrical compatibility. After the first
-   USB tone, test a generated 24-channel USB stream at the target format.
+   USB tone, test a generated 24-channel USB stream at the target format,
+   including the checked patterns, staged runs and resource margins in
+   TEST-008. All 24 generated channels must be active together. This stage
+   does not require buying 24 analog front ends or precision audio instruments.
    Source review is not sustained-capture validation. Prefer a representative
    multichannel converter bank when qualified test hardware is available;
    a stereo converter is only an optional diagnostic purchase.
@@ -279,8 +328,9 @@ or a successful file upload alone does not prove the updated program runs.
   Verification: [TEST-011](test-procedures.md#test-011-yocto-baseline-access-and-updates).
 
 - FW-003: Validate board boot, login and a board-generated USB tone, then
-  review the full-channel pin/clock/driver/USB path and exact ADC interface
-  before recommending an analog hardware purchase. Prove sustained capture
+  close review gate G1 and validate the generated full-channel USB path and
+  paper pin/clock/driver/exact-ADC interface before recommending an analog
+  hardware purchase. Prove sustained capture
   with representative test hardware afterward; source review is not a pass.
   Retain source/build/kernel evidence separately from physical observations.
   Verification: [TEST-008](test-procedures.md#test-008-usb-path-packet-budget-and-clock-rate-handling), [TEST-009](test-procedures.md#test-009-board-interface-clocks-power-and-capture-dma).

@@ -250,24 +250,165 @@ BLOCKED gates, not guessed thresholds or evidence of feature completion.
 
 ## TEST-008: USB path, packet budget and clock-rate handling
 
-1. Inspect negotiated high-speed UAC2 descriptors and Linux driver binding.
-   Start a mono generated tone in matched ALSA formats, record on the host,
-   and verify frequency/amplitude/physical device routing and error logs.
-2. Before selecting an ADC board, exercise a generated 24-channel/96-kHz
-   stream with known channel/frame patterns in the actual target USB packing.
-   For 3-byte subslots, 12 frames require 864 bytes and 13 require 936 bytes
-   per high-speed microframe. A four-byte subslot needs 1152 bytes for 12
-   frames and exceeds the reviewed 1024-byte implementation cap.
-3. Verify actual descriptor capacity, controller behavior and packet contents,
-   not just nominal bus bandwidth. Initially run 30 minutes, logging pattern
-   mismatches and buffers. Exercise clock tolerance/USB scheduling variation
-   within the documented supported range; inspect bounded occupancy and
-   absence of hidden sample deletion/resampling. Undefined clock limits
-   block the tolerance subtest.
+Scope: generated samples in BeagleBone userspace -> ALSA gadget playback ->
+USB -> native Linux host capture -> saved recording and independent checker.
+External review gate G1 in the requirements must close before changing the
+board or executing this plan. No new ADC, preamp or analyzer is needed for
+this stage. All new scenarios remain NOT_RUN until their evidence is retained.
+Thresholds below implement the proposed
+[USB-stage profile](requirements.md#generated-usb-stage-test-profile);
+that requirements section owns their values and review status.
 
-PASS: the named USB requirements hold for the advertised configuration.
-Generated samples prove the USB path only; they bypass ADC, McASP and capture
-DMA and cannot satisfy the complete analog/digital-front-end tests.
+### Configuration and packet preflight
+
+1. Preserve the working mono configuration and a UART recovery path. Record
+   kernel/source revisions, gadget settings, channel-position/mapping metadata,
+   descriptors, native PCM formats, host controller/topology and recorder.
+   Retain a high-speed UAC2 enumeration and mono tone/application check.
+2. Qualify 24 simultaneous channels at 96 kHz with 24 valid bits and three-byte
+   USB subslots. Confirm native sample packing rather than inferring it from
+   an editor export. Disable sample-rate conversion, gain, mute, dither and
+   other transformations on the comparison path; use unity or absent gadget
+   volume controls. Record processor-memory and stored-file widths separately.
+3. Calculate endpoint service interval/capacity with the actual driver:
+   at 125 us, 12 frames x 24 x 3 = 864 bytes; a 13-frame packet is 936 bytes.
+   Four-byte subslots already need 1152 bytes for 12 frames, beyond the
+   reviewed driver's 1024-byte cap. Inspect actual descriptors and bounded
+   packet traces for lengths/frame alignment and extra-frame handling. Do not
+   advertise or run an over-capacity configuration as a valid stream.
+
+The cap is a finding about the inspected implementation, not all USB 2.0
+isochronous endpoints. Source baseline: Linux 6.6.21 Yocto commit
+06644f0d7193d7ec39d7fe41939a21953e7a0c65, functions
+get_max_bw_for_bint/set_ep_max_packet_size_bint in
+drivers/usb/gadget/function/f_uac2.c and packet accumulation in u_audio.c.
+[Kernel UAC2 interface documentation](https://www.kernel.org/doc/html/latest/usb/gadget-testing.html#uac2-function)
+describes configuration attributes; verify their presence in the pinned build.
+
+### Exact-data oracle and detector qualification
+
+An oracle is the independently defined expected sample stream. Freeze its
+algorithm, seeds, channel order, unsigned 24-bit code representation,
+little-endian byte encoding and reference vectors before running hardware.
+Keep 64-bit frame indices and a unique run identifier in the run manifest.
+For the long identity pattern, encode the frame index across multiple sample
+words or use an equivalently unambiguous long-period construction; a lone
+24-bit counter wraps after about 175 seconds at 96 kHz and is insufficient.
+Every channel also needs identifiable, changing data. Rotate counter/marker
+roles through channels so no channel or bit is checked only with a constant.
+
+The host checker compares every captured 24-bit value against the frozen
+definition. It must not obtain its expectation by copying the board's output
+or importing the same untested packing routine. Independently specified byte
+vectors must cover sign and byte boundaries. Retain implementation revisions,
+first failing frame/channel/expected/actual values and total checked counts.
+
+Before trusting PASS, demonstrate each detector with corrupted host fixtures:
+one-bit changes in every bit position/channel, missing/duplicated sample and
+whole frame, channel swap/duplication, byte-order/subslot shift, stuck bit,
+zero-filled block, truncation and an error at a recording-chunk boundary.
+Also deliberately reset/wrap the generator's sequence state. Each must FAIL;
+an intact reference must PASS. These software fixtures do not inject voltage
+faults into the board. Test detection during recording as well as final-file
+validation; record the checker interval and failure-notification delay.
+
+Start capture before the generator. Use unique start/end markers and a
+predeclared alignment method. Report startup/shutdown samples excluded from
+comparison and their maximum permitted duration, proposed at two seconds per
+end. Start the timed valid-data window only after the start marker. No silent
+resynchronization, dropped tail or exclusion of an interior mismatch is allowed.
+A missing end marker or incomplete comparison is FAIL, not a shorter PASS.
+
+### Patterns and run matrix
+
+PCM sample contents change data coverage, not the constant PCM byte rate.
+No waveform proves an absolute worst case for every software and electrical
+failure. Use the following complementary tests, with all configured channels
+recording throughout:
+
+| Pattern family | Purpose / minimum target-format execution |
+| --- | --- |
+| Channel/frame identity with seeded pseudorandom payload | Detect loss, duplication, cross-channel substitution and frame slips. Use it throughout the matrix and long runs; freeze the generator/period/reference vectors first. |
+| Zero, all-one code, +1/-1 least-significant-bit codes, signed maximum/minimum and byte-boundary values | Detect zero fill, sign extension, clipping/mute and packing errors. Cycle explicit epochs for at least 60 s at 24 channels/96 kHz. These constant portions require the identity run too. |
+| Walking one/walking zero through all 24 bits, plus a channel-active marker moved through all 24 channels | Check every bit/channel and channel map for at least 60 s; retain a coverage count for every bit/channel combination. |
+| Alternating 0x555555/0xAAAAAA and signed maximum/minimum, across frames and adjacent channels | Exercise contrasting packed data and sample boundaries for at least 60 s. This is data-path coverage, not a USB electrical eye test. |
+| Distinct per-channel tones, band-limited sweep and marked burst/silence waveform | Application routing and frequency/transition sanity for at least 60 s. Exact-data comparisons use frozen PCM vectors, not estimated FFT frequency. Do not play high-level pattern noise through speakers. |
+
+Proposed sequence after G1: retain the existing mono 48-kHz/16-bit bootstrap;
+then run identity data for 60 s each at 1/96k, 8/96k, 24/48k and 24/96k using
+three-byte USB samples. The lower-count/rate configurations are diagnostic,
+not extra advertised product modes. Execute the pattern bank at 24/96k,
+then a 30-minute nominal run and a one-hour loaded run using the long identity
+pattern. Durations count compared data, not startup. A short success at an
+easier setting does not qualify the target format. Retain one Audacity or
+equivalent application capture at the target channel count/rate separately;
+native capture provides the exact-data oracle.
+
+### Load, clock variation and the meaning of 2x
+
+- Component processing: separately benchmark the actual board generator and
+  host unpack/check routines for at least 60 s after warm-up, with the same
+  algorithm, buffers and build options. Proposed goal: at least twice realtime
+  frames/s at each component, including conversion/copy work it owns. For
+  packed USB data, realtime is 6.912 MB/s and 2x is 13.824 MB/s. Four-byte
+  memory processing instead needs 9.216/18.432 MB/s. Report frames/s, bytes/s,
+  CPU and memory; an in-memory benchmark excludes USB and disk capacity.
+- Storage: apply TEST-006's bounded, flushed preflight to the explicitly
+  identified host SATA volume. At least 13.824 MB/s is the proposed 2x goal
+  for packed files, or 18.432 MB/s for four-byte files. Include concurrent
+  capture/checking and actual bridge/topology. An absent/unidentified volume
+  leaves this gate BLOCKED; do not select an unknown disk automatically.
+- One-hour loaded capture: keep target USB traffic fixed. Sustain a named,
+  bounded CPU workload and SSH status/ECM traffic on the board, plus host CPU
+  and bounded I/O load on the selected recording drive. Freeze load commands,
+  byte rates, CPU affinity/priority and resource limits in the run manifest
+  before execution. Record one-second CPU/RAM/temperature/error summaries,
+  buffer high/low water marks and worst scheduling/storage stalls. Missing
+  workload definitions or buffer instrumentation block the load subtest.
+- Proposed buffer-reserve criterion: at each critical-path service-gap entry,
+  the usable queued/free reserve, for that queue's direction, must cover at
+  least twice the worst measured combined gap for that path. Convert
+  frames/bytes to time at the measured rate; do not add unrelated stall maxima
+  or treat sampled occupancy alone as a continuous minimum. Instrument bounds
+  or mark INCONCLUSIVE.
+  Measured worst stalls are observations, not guaranteed future maxima.
+- Software clock variation: propose -100/0/+100 ppm for ten minutes at each
+  offset, in addition to the nominal runs. Review this provisional range
+  against eventual oscillator tolerances. Qualify any gadget pitch/rate
+  control from source and its runtime range before use. Compare actual
+  packet/rate behavior and bounded queue occupancy; no resampling or hidden
+  sample deletion. A simulated rate offset does not qualify a physical ADC
+  clock, its jitter or a future independent-clock bridge. If the mechanism or
+  supported range is undefined, mark this subtest BLOCKED.
+- Deliberate overload: with TEST-010, increase a bounded workload until a
+  failure is observed or the declared test ceiling is reached. Zero loss is
+  required inside the agreed operating envelope. Beyond it, require visible
+  failure and recovery, not an impossible promise of uninterrupted capture.
+
+Do not double analog voltage, BCLK, channel count or sample rate to claim
+margin. Doubling the packed target USB payload needs 1728 bytes per nominal
+125-us interval, exceeding this implementation's 1024-byte cap. A component
+2x result is not a whole-device 2x claim. USB electrical signaling and McASP
+clock/data setup/hold need separate physical qualification in TEST-009.
+
+### USB-stage decision and evidence
+
+PASS only for the tested generated USB path: correct native format/channel
+map; qualified checker; zero compared mismatches, loss, duplication or
+unexplained zero fill; zero streaming xruns/errors in the valid-data windows;
+completed pattern/matrix/nominal/loaded/rate-variation checks; and bounded
+queues. Record each margin result separately against USB-007/FW-007; failure
+or inconclusive evidence requires a review disposition before buying advice.
+Execute TEST-010 source stop, host stop, USB reconnect and restart cases at
+least three times each; bracket expected disruptions and pass a fresh 60-s
+identity check after each recovery. Startup failures count; do not rerun them
+away. Preserve the original mono configuration and return to it after tests.
+
+Retain manifests, native data or lossless chunks, exact sample counts,
+checker/fixture results, bounded USB traces and resource/error logs. Long
+automated runs must persist progress/results and notify without assistant
+polling. The later 24-hour TEST-006 and all 24 physical input, ADC-clock,
+McASP/DMA and analog-quality tests remain separate, unpassed gates.
 
 ## TEST-009: Board interface, clocks, power and capture DMA
 
@@ -277,6 +418,10 @@ DMA and cannot satisfy the complete analog/digital-front-end tests.
 2. Calculate serial clocks, timing margins, voltage/startup limits, FIFO/DMA
    layout and available buffers. Review the chosen kernel's CPU and codec
    DAI constraints; CPU-side channel capacity alone is insufficient.
+   Define worst-case supply/temperature, clock tolerances, output delay,
+   input setup/hold, duty cycle, skew, wiring/load and simultaneous-lane
+   switching within component ratings. Patterned USB audio does not measure
+   these electrical margins; do not substitute doubled voltage/clock tests.
 3. Review paper compatibility before purchase. With qualified test hardware,
    measure rails/clock duty/setup/hold/reset, bind the actual sound card and
    run known patterns through the full receive-serializer/DMA arrangement.
@@ -391,6 +536,8 @@ solely because its procedure exists. Results belong in a dated bench report.
 | USB-003 | [TEST-001](#test-001-channel-count-and-format) |
 | USB-004 | [TEST-008](#test-008-usb-path-packet-budget-and-clock-rate-handling) |
 | USB-005 | [TEST-008](#test-008-usb-path-packet-budget-and-clock-rate-handling), [TEST-006](#test-006-continuous-recording) |
+| USB-006 | [TEST-008](#test-008-usb-path-packet-budget-and-clock-rate-handling) |
+| USB-007 | [TEST-008](#test-008-usb-path-packet-budget-and-clock-rate-handling), [TEST-006](#test-006-continuous-recording) |
 | ADC-001 | [TEST-001](#test-001-channel-count-and-format) |
 | ADC-002 | [TEST-001](#test-001-channel-count-and-format) |
 | ADC-003 | [TEST-002](#test-002-crosstalk) |
