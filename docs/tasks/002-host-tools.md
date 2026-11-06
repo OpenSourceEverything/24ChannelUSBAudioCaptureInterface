@@ -17,18 +17,21 @@ Exit: software self-tests and detector fixtures pass; commands and limits are
 documented. This does not pass TEST-008 on a physical USB connection.
 
 Delivered: [tools and commands](../../tools/usb_integrity/README.md), separate
-compiled implementations, 24 USB-tool test methods including deliberate
-faults, and explicit RUNNING/PASS/FAIL/ERROR reports. Native builds use strict
-compiler warnings. Complete project suite: 59 test methods pass.
+compiled implementations and explicit RUNNING/PASS/FAIL/ERROR reports. Native
+builds use strict compiler warnings. November 6 adds independent host watchdog,
+PID/boot/start-time identity, deadline/INTERRUPTED results, kill/timeout/cleanup
+fixtures and the revised bit/channel bank check: 33 USB-tool methods and 68
+whole-project methods pass. No hardware test is implied.
 
 The host pipe benchmark compares 5,760,000 data frames / 414,720,000 bytes
 without a mismatch. It is a short throughput observation, not TEST-008's
 separate 60-second component-margin measurement or board/USB/storage evidence.
 Exact values and provenance: [preparation review](../reviews/usb-tools-preparation-2026-11-04.md).
 
-Remaining implementation belongs to 004: live capture comparison/notification,
-independent supervision and stopped-worker detection, waveform bank and
-qualified instrumentation. The synchronous host utility does not supply these
-features and must not supervise an unattended hardware run by itself.
+Remaining hardware orchestration is [006](006-capture-runner.md), including
+native readiness, live comparison, remote containment and notification;
+qualified error observation is [007](007-usb-error-observation.md). G1-B
+defers extra waveform families while retaining the four-pattern bank. The
+host utility must not supervise unattended hardware capture by itself.
 
 Next: [ARM build and trial preparation](003-board-preparation.md).

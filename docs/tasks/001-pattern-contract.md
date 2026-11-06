@@ -20,5 +20,7 @@ are tested. Periodic patterns explicitly require the separate identity run.
 Validation and limits: [preparation review](../reviews/usb-tools-preparation-2026-11-04.md).
 The frozen contract covers four exact-code patterns. It does not yet implement
 TEST-008's distinct tone/sweep/burst bank or channel-active marker epochs.
+G1-B explicitly defers those extra families from the early recommendation
+gate; the implemented four-pattern/rotation bank remains required.
 
 Next: [host qualification](002-host-tools.md), then external G1 disposition.

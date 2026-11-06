@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Bounded, host-only entry point. Never configures USB or opens an audio device."""
 import argparse
+import contextlib
+import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
 import secrets
+import signal
 import shlex
 import shutil
 import stat
@@ -19,6 +22,185 @@ SOURCE = Path(__file__).resolve().parent
 PATTERNS = ('identity', 'edges', 'walking', 'alternating')
 MAX64 = (1 << 64) - 1
 FLAGS = ['-std=c11', '-O2', '-Wall', '-Wextra', '-Werror', '-Wconversion', '-pedantic']
+
+
+def process_identity(pid, *, live=False):
+    """Linux PID identity survives neither PID reuse nor reboot; zombies aren't live."""
+    try:
+        pid = int(pid)
+        if pid <= 0:
+            return None
+        fields = (Path('/proc') / str(pid) / 'stat').read_text().rsplit(')', 1)[1].split()
+        if live and fields[0] in ('Z', 'X'):
+            return None
+        return {'pid': pid, 'start_ticks': fields[19],
+                'boot_id': Path('/proc/sys/kernel/random/boot_id').read_text().strip()}
+    except (OSError, ValueError, TypeError, IndexError):
+        return None
+
+
+def alive(identity):
+    return bool(identity and process_identity(identity.get('pid'), live=True) == identity)
+
+
+@contextlib.contextmanager
+def result_lock(directory):
+    with (directory / 'result.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def update_running(directory, fields):
+    """Watchdog interruption wins over a later worker attempting to commit PASS."""
+    with result_lock(directory):
+        path = directory / 'result.json'
+        result = json.loads(path.read_text())
+        if result['status'] != 'RUNNING':
+            return False
+        result.update(fields)
+        write_json(path, result)
+        return True
+
+
+def cleanup_worker(identity):
+    # Each worker creates its own session before publishing worker-ready.json.
+    # Refuse to signal any group whose leader's identity has changed/disappeared.
+    if not identity or process_identity(identity.get('pid')) != identity:
+        return 'UNVERIFIED: worker identity unavailable; no unrelated group signalled'
+    pid = identity['pid']
+    try:
+        if os.getpgid(pid) != pid or os.getsid(pid) != pid:
+            return 'UNVERIFIED: worker is not the recorded session/group leader'
+        os.killpg(pid, signal.SIGTERM)
+        time.sleep(0.1)
+        if process_identity(pid) == identity:
+            os.killpg(pid, signal.SIGKILL)
+        return 'TERM/KILL sent to identified worker session; descendants need final audit'
+    except ProcessLookupError:
+        return 'Worker group already absent'
+    except OSError as error:
+        return 'UNVERIFIED cleanup: ' + str(error)
+
+
+def interrupt_job(directory, reason):
+    if update_running(directory, {'status': 'INTERRUPTED', 'reason': reason,
+                                  'hardware_verified': False}):
+        result = json.loads((directory / 'result.json').read_text())
+        cleanup = cleanup_worker(result.get('worker'))
+        with result_lock(directory):
+            path = directory / 'result.json'
+            result = json.loads(path.read_text())
+            result['cleanup'] = cleanup
+            write_json(path, result)
+
+
+def watchdog(directory):
+    while True:
+        result = json.loads((directory / 'result.json').read_text())
+        if result['status'] != 'RUNNING':
+            return
+        reason = None
+        if not alive(result.get('owner')):
+            reason = 'owner_died_or_identity_changed'
+        elif not alive(result.get('worker')):
+            reason = 'worker_died_or_identity_changed'
+        elif time.monotonic() >= result['deadline_monotonic']:
+            reason = 'wall_time_limit_exceeded'
+        if reason:
+            interrupt_job(directory, reason)
+            return
+        time.sleep(0.1)
+
+
+def worker(args, directory):
+    os.setsid()
+    write_json(directory / 'worker-ready.json', process_identity(os.getpid()))
+    # Parent must install an independent watchdog before work may begin.
+    while True:
+        result = json.loads((directory / 'result.json').read_text())
+        if result['status'] != 'RUNNING' or not alive(result.get('owner')):
+            return
+        if alive(result.get('watchdog')):
+            break
+        if time.monotonic() >= result['deadline_monotonic']:
+            return
+        time.sleep(0.01)
+    started = time.monotonic()
+    fields = {}
+    try:
+        fields['build'] = build(directory / 'bin', args.cc)
+        fields.update({'status': 'PASS', 'scope': 'compilation_only'} if args.command == 'build'
+                      else execute(args, directory, directory / 'bin'))
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError, KeyboardInterrupt) as error:
+        fields.update(status='ERROR', error=str(error)[:1500])
+    fields['total_elapsed_seconds'] = time.monotonic() - started
+    current = json.loads((directory / 'result.json').read_text())
+    if not alive(current.get('owner')) or not alive(current.get('watchdog')):
+        interrupt_job(directory, 'supervisor_missing_at_completion')
+    else:
+        update_running(directory, fields)
+
+
+def supervised(args, directory):
+    worker_pid = os.fork()
+    if worker_pid == 0:
+        try:
+            worker(args, directory)
+        finally:
+            os._exit(0)
+    ready = directory / 'worker-ready.json'
+    deadline = time.monotonic() + min(5, args.timeout_seconds)
+    while not ready.exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    if not ready.exists():
+        update_running(directory, {'status': 'INTERRUPTED', 'reason': 'worker_startup_incomplete'})
+        # PID still owned by this parent; terminate only this unreaped child.
+        os.kill(worker_pid, signal.SIGKILL)
+        os.waitpid(worker_pid, 0)
+        return
+    update_running(directory, {'worker': json.loads(ready.read_text())})
+    guard_pid = os.fork()
+    if guard_pid == 0:
+        try:
+            os.setsid()
+            watchdog(directory)
+        finally:
+            os._exit(0)
+    update_running(directory, {'watchdog': process_identity(guard_pid), 'phase': 'EXECUTING'})
+    try:
+        # WNOWAIT retains the worker identity until cleanup is complete.
+        while not os.waitid(os.P_PID, worker_pid, os.WEXITED | os.WNOHANG | os.WNOWAIT):
+            current = json.loads((directory / 'result.json').read_text())
+            if current['status'] == 'RUNNING' and not alive(current.get('watchdog')):
+                interrupt_job(directory, 'watchdog_died')
+            time.sleep(0.02)
+        interrupt_job(directory, 'worker_exited_without_terminal_result')
+    except KeyboardInterrupt:
+        interrupt_job(directory, 'owner_interrupted')
+    finally:
+        _, worker_status = os.waitpid(worker_pid, 0)
+        _, guard_status = os.waitpid(guard_pid, 0)
+        with result_lock(directory):
+            path = directory / 'result.json'
+            result = json.loads(path.read_text())
+            result.update(worker_exit_code=os.waitstatus_to_exitcode(worker_status),
+                          watchdog_exit_code=os.waitstatus_to_exitcode(guard_status))
+            write_json(path, result)
+
+
+def status(output):
+    latest = json.loads((output / 'latest.json').read_text())
+    directory = Path(latest['result']).parent
+    result = json.loads((directory / 'result.json').read_text())
+    if result['status'] == 'RUNNING':
+        # Conservative fallback also handles an older run lacking supervision.
+        keys = ('owner',) if result.get('phase') == 'STARTING' else ('owner', 'worker', 'watchdog')
+        if not all(alive(result.get(key)) for key in keys):
+            interrupt_job(directory, 'abandoned_or_unsupervised_run')
+        elif time.monotonic() >= result['deadline_monotonic']:
+            interrupt_job(directory, 'wall_time_limit_exceeded')
+        result = json.loads((directory / 'result.json').read_text())
+    return result
 
 
 def sha(path):
@@ -187,7 +369,7 @@ def execute(args, directory, binary):
 
 def parse(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('build', 'selftest', 'generate', 'check', 'benchmark'))
+    parser.add_argument('command', choices=('build', 'selftest', 'generate', 'check', 'benchmark', 'status'))
     parser.add_argument('--output-dir', type=Path, default=ROOT / '.local/usb-integrity')
     parser.add_argument('--cc', default=os.environ.get('CC', 'cc'), help='Compiler plus optional flags; no shell evaluation')
     parser.add_argument('--channels', type=int, default=24)
@@ -203,36 +385,41 @@ def parse(argv=None):
     parser.add_argument('--input', type=Path)
     parser.add_argument('--max-leading-frames', type=int, default=0)
     parser.add_argument('--max-trailing-frames', type=int, default=0)
+    parser.add_argument('--timeout-seconds', type=int, default=600,
+                        help='Independent wall-time limit for the complete host job')
     args = parser.parse_args(argv)
     if args.command == 'check' and (args.manifest is None or args.input is None):
         parser.error('check requires --manifest and --input')
     if args.seconds <= 0 or args.seconds > 3600:
         parser.error('--seconds must be 1..3600')
+    if not 1 <= args.timeout_seconds <= 7200:
+        parser.error('--timeout-seconds must be 1..7200')
     return args
 
 
 def main(argv=None):
     args = parse(argv)
+    if args.command == 'status':
+        result = status(args.output_dir)
+        print(json.dumps(result))
+        return 0 if result['status'] == 'PASS' else 1
     args.output_dir.mkdir(parents=True, exist_ok=True)
     directory = args.output_dir / ('run-' + uuid.uuid4().hex)
     directory.mkdir()
     result_path = directory / 'result.json'
     result = {'status': 'RUNNING', 'command': args.command, 'run_id': directory.name,
               'pid': os.getpid(),
+              'owner': process_identity(os.getpid()),
+              'phase': 'STARTING',
+              'deadline_monotonic': time.monotonic() + args.timeout_seconds,
               'hardware_verified': False, 'g1': 'HOLD', 'contract': 1}
     write_json(result_path, result)
-    write_json(args.output_dir / 'latest.json', {'result': str(result_path), 'status': 'RUNNING'})
-    started = time.monotonic()
+    write_json(args.output_dir / 'latest.json', {'result': str(result_path)})
     try:
-        info = build(directory / 'bin', args.cc)
-        result['build'] = info
-        result.update({'status': 'PASS', 'scope': 'compilation_only'} if args.command == 'build'
-                      else execute(args, directory, directory / 'bin'))
-    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError, KeyboardInterrupt) as error:
-        result.update(status='ERROR', error=str(error)[:1500])
-    result['total_elapsed_seconds'] = time.monotonic() - started
-    write_json(result_path, result)
-    write_json(args.output_dir / 'latest.json', {'result': str(result_path), 'status': result['status']})
+        supervised(args, directory)
+    except (OSError, ValueError, RuntimeError) as error:
+        interrupt_job(directory, 'supervision_error: ' + str(error))
+    result = json.loads(result_path.read_text())
     print(json.dumps({'status': result['status'], 'scope': result.get('scope'),
                       'result': str(result_path), 'error': result.get('error')}))
     return 0 if result['status'] == 'PASS' else 1

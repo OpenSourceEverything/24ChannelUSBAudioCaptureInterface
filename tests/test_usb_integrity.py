@@ -132,6 +132,25 @@ class IntegrityTools(unittest.TestCase):
             self.assertEqual(subprocess.check_output([*self.program('generate'), *self.args(**config)]), data)
             self.assertEqual(self.compare(data, config).returncode, 0)
 
+    def test_early_bank_covers_all_bits_and_changing_channels(self):
+        # Qualify the revised hardware bank using actual native producer bytes.
+        data = subprocess.check_output([*self.program('generate'),
+                                        *self.args(frames=48, pattern='walking')])[4 * 72:-4 * 72]
+        for channel in range(24):
+            values = [int.from_bytes(data[f * 72 + channel * 3:f * 72 + channel * 3 + 3],
+                                     'little') for f in range(48)]
+            for bit in range(24):
+                self.assertEqual({(value >> bit) & 1 for value in values}, {0, 1})
+        changing = set()
+        for rotation in (0, 3):
+            data = subprocess.check_output([*self.program('generate'),
+                                            *self.args(frames=16, rotation=rotation)])[4 * 72:-4 * 72]
+            for channel in range(24):
+                values = {data[f * 72 + channel * 3:f * 72 + channel * 3 + 3] for f in range(16)}
+                if len(values) > 1:
+                    changing.add(channel)
+        self.assertEqual(changing, set(range(24)))
+
     def test_error_at_stdio_chunk_boundary_is_observed(self):
         config = dict(frames=2000)
         clean = reference_stream(**config)

@@ -29,11 +29,27 @@ Only explicit --max-leading-frames / --max-trailing-frames permit exclusions,
 at most two seconds each. Default is zero. Reports retain first bad frame,
 channel and expected/actual codes. Every completed non-PASS command exits
 nonzero. A compiler failure, timeout or abnormal checker termination is ERROR.
-RUNNING is never a pass: this synchronous host utility has no independent
-supervisor, periodic capture checker or desktop notifier. After a forced kill,
-its unfinished result can remain RUNNING. Task 004 must supply those lifecycle
-features before unattended hardware runs; do not use this runner alone as
-their supervisor.
+Host jobs now execute in a separate worker session with an independent watchdog.
+The watchdog checks owner/worker PID, process start time, boot identity and a
+wall-time deadline; owner or worker SIGKILL produces a retained INTERRUPTED
+result without owner polling. Loss of the watchdog also interrupts the job.
+Cleanup attempts and uncertain/failed cleanup are retained, and an interrupted
+job cannot later commit PASS. --timeout-seconds (default 600, range 1..7200)
+sets the full-job bound. This lifecycle support is Linux-specific.
+
+```sh
+python3 tools/usb_integrity/run.py status
+```
+
+Status reads the result referenced by latest.json, and conservatively marks
+legacy abandoned/unsupervised RUNNING results INTERRUPTED. latest.json is a
+pointer, not a second status authority. Per-run result.json is authoritative.
+PID reuse cannot authorize signalling an unrelated process group. If the
+recorded group leader has disappeared, cleanup is explicitly UNVERIFIED;
+this host utility is not cgroup containment of arbitrary remote descendants.
+Live PCM readiness/capture orchestration, bounded live comparison, remote
+worker containment and desktop notification remain [task 006](../../docs/tasks/006-capture-runner.md).
+Do not use the host utility alone as an unattended hardware capture supervisor.
 
 Options: --channels 1..24, --rate 48000/96000, --pattern
 identity/edges/walking/alternating, --rotation 0..channels-1,

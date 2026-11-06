@@ -1,6 +1,6 @@
 # 003 — Prepare the board experiment
 
-State: READY_FOR_REVIEW. Depends on [002](002-host-tools.md); execution waits
+State: REVISED_G1_B, 2026-11-06. Depends on [002](002-host-tools.md); execution waits
 for G1. This is deployment/trial preparation for TEST-008, not another test
 procedure or an execution approval.
 
@@ -9,7 +9,10 @@ reviewable manifest and recovery instructions for the first target-format
 trial. Record the pinned gadget ring/period constraints and the actual error
 observation needed; source limits are not runtime measurements.
 
-Do not change live USB profiles, clocks, pinmux or firmware while G1 is open.
+Do not change the target USB profile, clocks, pinmux or firmware while full
+acceptance readiness is open. Tasks 006/007 may qualify observers/readiness on
+the preserved mono setup under their bounded protocol; no target-format PASS
+follows from that calibration.
 Do not rebuild or reflash the base image just to stage a userspace tool.
 
 Exit: reviewable software artifacts and explicit trial/recovery steps are
@@ -39,13 +42,15 @@ rate_hz 96000, pattern identity, rotation 0, first_frame "0", frames
 producer also sends four START and four END frames: 414,720,576 total bytes.
 Retain this manifest independently of captured samples. Prepare bounded host
 storage for a 62-second raw capture (428,544,000 bytes), logs and analysis
-copies, with at least the documented 20% allowance. Final SATA qualification
-is still required by the unchanged procedures unless G1 explicitly disposes
-the proposal to defer it. Never select, format or write an unknown disk.
+copies, with at least the documented 20% allowance. G1-B permits an identified
+existing host volume at this early gate; final SATA/2× qualification remains
+later FW-007/TEST-006 work. Never select, format or write an unknown disk.
 
 After G1, from the retained UART console: save the current UDC and all gadget
 attributes; stop producers; unbind the gadget; set p_chmask=16777215,
-p_srate=96000 and p_ssize=3; rebind the same controller. This deliberately
+p_srate=96000, p_ssize=3 and p_hs_bint=1; record actual fb_max and calculate
+required packet reserve before rebinding the same controller. The pinned
+default 5 requires at least 936 bytes. This deliberately
 disconnects composite USB audio/SSH. Retain host enumeration, high-speed
 state, descriptors, card IDs and native format/channel/rate capabilities.
 Do not assume old ALSA card numbers survive reconnect. Unsupported native
@@ -117,5 +122,7 @@ tone recording. An unresponsive controller requires a separately recorded
 recovery; the earlier rebind success is not an automatic production policy.
 No reboot, eMMC change or pinmux alteration is part of this trial preparation.
 
-Next: resolve external G1 findings, then complete task 004's runner/error
-instrumentation and execute only the accepted plan. [Review entry point](../reviews/usb-tools-preparation-2026-11-04.md).
+Next: complete [capture orchestration](006-capture-runner.md) and
+[USB error qualification](007-usb-error-observation.md), freeze the load
+manifest, then execute task 004's revised early gate. The agreed scope edits
+are recorded in the [G1 disposition](../reviews/g1-disposition-2026-11-06.md).

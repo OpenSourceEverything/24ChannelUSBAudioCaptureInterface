@@ -65,6 +65,49 @@ conversion up to 96 kHz and I2S/left-justified serial output; it is not a
 drop-in eight-channel TDM design. Its documented analog performance falls
 short of the proposed production LINE targets; it can still prove integration.
 
+## ADC clock to USB rate reconciliation
+
+Status: G1-B paper design, 2026-11-06; not an implemented or measured bridge.
+Generated software samples do not test this clock-domain boundary. A credible
+paper mapping is required before an exact ADC recommendation; representative
+hardware must qualify it before a production architecture is approved.
+
+Proposed ownership: all ADC channels share one audio master clock, frame sync
+and deterministic reset sequence. One explicitly selected source drives each
+clock net; McASP receives the bank's coherent BCLK/frame signals in the
+reviewed synchronized/slave arrangement. At eight 32-bit slots and 96 kHz,
+three receive lanes share 24.576-MHz BCLK. The ADC MCLK ratio, board-reference
+availability/fan-out and codec master/slave modes remain exact-module checks,
+not assumptions that 24.576 MHz suits every converter configuration.
+
+The host's USB microframe clock is a separate domain. A finite FIFO alone
+cannot absorb a permanent average-rate difference. The candidate bridge:
+
+1. Captures native coherent ADC frames, preserves channel/slot ordering and
+   valid bits, and packs only the required USB representation.
+2. Uses bounded capture/playback queues with recorded levels, timestamps,
+   actual ALSA sizes and explicit start/stop/underrun handling.
+3. Adjusts the asynchronous board-to-host gadget packet rate through the
+   pinned driver's Playback Pitch control, using a bounded queue-occupancy
+   controller. Nominal pitch is 1000000. u_audio.c multiplies the advertised
+   rate by pitch when accumulating packet frames. Its ALSA control limits
+   depend on FBACK_SLOW_MAX and actual fb_max; inspect runtime limits rather
+   than hardcoding a range or assuming the default tracks the ADC clock.
+4. Qualifies controller sign, update timing/gains, startup priming, bounded
+   occupancy, saturation behavior, descriptor reserve and measurement overhead.
+   A sustained clamp, exhaustion or unexplained sample discontinuity is a
+   visible fault. No sample deletion/duplication or hidden resampling is used
+   to repair a failed clock policy.
+
+Source existence of Playback Pitch establishes a possible control mechanism,
+not loop stability, host compatibility or adequate CPU/scheduling capacity.
+Freeze the actual clock source/tolerances and controller only after driver/
+module review; measure physical sample-rate offset, frame alignment, drift,
+loaded buffers and packet behavior on representative hardware. A software
++/-100-ppm experiment is later characterization and cannot qualify ADC jitter
+or a physical independent-clock bridge. If this plan cannot be implemented
+with bounded queues and all samples preserved, revisit the architecture.
+
 ## USB bandwidth is an endpoint constraint
 
 Decimal payload rates, excluding protocol overhead:

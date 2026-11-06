@@ -1,0 +1,103 @@
+{
+  "date": "2026-11-06",
+  "reviewed_baseline_commit": "6305834de0acd112c11a9f16a805d24c21821a66",
+  "received_review_sha256": "e2b8e396ce85e485c7845dfe289f9e0b146011e52bfca3401e9919be85703fe8",
+  "reviewer_identity": "not supplied",
+  "authority": "Owner requested scrutiny and implementation of agreed findings; agreed plan edits authorized.",
+  "revision": "G1-B",
+  "g1": "HOLD_EXECUTION_READINESS",
+  "board_access_this_implementation": false,
+  "hardware_verified": false,
+  "purchases": false,
+  "native_validation": {
+    "status": "PASS",
+    "project_methods": 68,
+    "usb_tool_methods": 33,
+    "lifecycle_methods": 8,
+    "elapsed_test_seconds": 5.741,
+    "host_log_sha256": "a40d0301fa94312f90da54129963b600786967f35f8e261db1ad933870186422",
+    "cases": [
+      "clean finite generator/checker and comparison",
+      "all 576 bit/channel faults",
+      "early bank bit/changing-channel coverage",
+      "killed owner",
+      "killed worker",
+      "killed watchdog",
+      "wall-time expiry",
+      "failed cleanup retained",
+      "PID reuse group-signal refusal",
+      "legacy abandoned RUNNING",
+      "live STARTING status"
+    ],
+    "limits": [
+      "Host-only process fixtures; no actual ALSA readiness or USB counter qualification.",
+      "No claim that arbitrary remote descendants or uninterruptible I/O are contained."
+    ]
+  },
+  "current_files_sha256": {
+    "docs/requirements.md": "74e5bbbc1f7736c08224aab406ed14ed3ff6678e01c57ecaf9bbaea06130ccf9",
+    "docs/test-procedures.md": "e9cb2d19f195b983c1e2e46be6860a9ffee6c025169d6c75c7f35c7f72eb74df",
+    "docs/design/architecture.md": "9032a29c2e3f97eee5b08e9dd6cbab8dabaf8b4423a442fc1a3abb9f31581f07",
+    "docs/reviews/g1-disposition-2026-11-06.md": "93059221481ab8403f5e6d15a213f5de8936a678fff5b73a8e56171dba398199",
+    "docs/research/product-definition.md": "fd6baab56d45cac40f1eb8e3d1089c4a62592d0835bf813eb6acb814cb42913e",
+    "tools/usb_integrity/run.py": "e8be6f16fbf47d97c46c958e4b5f51be808c182ec9ec496aabdf694c732812df",
+    "tests/test_usb_integrity.py": "e9ba52b1a43d708f7d5dc5054f2ac18ab69ff7241fbf7b53192d6c26aec7a57e",
+    "tests/test_usb_integrity_runner.py": "a31ebfa0053c7988fecea48ae2144b81fc7f8e38b0017fba2c43414e3978f254",
+    "tests/test_usb_integrity_lifecycle.py": "44a1bc7fee95722fae5d61ae81af99658fd6812de889c9d8aeeaf3d470b3d207"
+  },
+  "open_hardware_prerequisites": [
+    "task 006 native capture readiness/live comparison/remote containment/notification",
+    "task 007 live completion observation, known event, attribution/liveness/loss",
+    "frozen exact workload and storage/worker evidence manifest"
+  ],
+  "deferred_not_passed": [
+    "final external SATA and 2x physical-write preflight",
+    "formal worst-gap reserve",
+    "software clock variation and physical ADC clock qualification",
+    "extra sweep/burst families unless a named gap requires them",
+    "later longer/full-device 24-hour acceptance"
+  ],
+  "primary_sources_checked": [
+    "https://focusrite.com/products/scarlett-18i20",
+    "https://help.harmanpro.com/en_US/ui24r-multitrack-recording-with-a-daw",
+    "https://docs.beagle.cc/boards/capes/cape-interface-spec.html"
+  ],
+  "source_check": "Actual cached pinned Linux 6.6.21 source inspected for packet reserve/clamping, completion early returns and Playback Pitch; live hardware not inspected.",
+  "retained_lifecycle_runs": [
+    {
+      "case": "clean",
+      "status": "PASS",
+      "scope": "host_generated_fixture",
+      "frames": "96",
+      "owner_exit": 0
+    },
+    {
+      "case": "owner",
+      "status": "INTERRUPTED",
+      "reason": "owner_died_or_identity_changed",
+      "cleanup": "TERM/KILL sent to identified worker session; descendants need final audit",
+      "owner_exit": -9
+    },
+    {
+      "case": "worker",
+      "status": "INTERRUPTED",
+      "reason": "worker_exited_without_terminal_result",
+      "cleanup": "TERM/KILL sent to identified worker session; descendants need final audit",
+      "owner_exit": 1
+    },
+    {
+      "case": "watchdog",
+      "status": "INTERRUPTED",
+      "reason": "watchdog_died",
+      "cleanup": "TERM/KILL sent to identified worker session; descendants need final audit",
+      "owner_exit": 1
+    },
+    {
+      "case": "timeout",
+      "status": "INTERRUPTED",
+      "reason": "wall_time_limit_exceeded",
+      "cleanup": "TERM/KILL sent to identified worker session; descendants need final audit",
+      "owner_exit": 1
+    }
+  ]
+}

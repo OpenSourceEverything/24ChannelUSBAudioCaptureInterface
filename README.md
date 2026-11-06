@@ -28,6 +28,7 @@ hardware is preferred once its interface is qualified.
 ## Product documents
 
 - [Engineering checkpoints and next work](docs/tasks/README.md)
+- [November 6 external-review disposition](docs/reviews/g1-disposition-2026-11-06.md)
 - [USB integrity tools and host qualification](tools/usb_integrity/README.md)
 - [Product requirements](docs/requirements.md)
 - [Repeatable test procedures and requirement coverage](docs/test-procedures.md)

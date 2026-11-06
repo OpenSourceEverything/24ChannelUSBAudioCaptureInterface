@@ -8,6 +8,10 @@ The [architecture](design/architecture.md) identifies feasibility constraints.
 [Repeatable test procedures](test-procedures.md) define setup, measurements,
 pass/fail rules and requirement coverage. A written procedure is not a test result.
 
+Review revision: G1-B, 2026-11-06. The [external-review disposition](reviews/g1-disposition-2026-11-06.md)
+records agreed changes and remaining execution prerequisites. This revision
+authorizes no hardware PASS or purchase.
+
 ## Purpose and boundary
 
 The product receives analog audio, converts it into synchronized digital
@@ -44,35 +48,58 @@ samples between that peripheral and memory; ALSA is Linux's audio interface.
 | USB-004 | Firmware shall advertise only configurations that fit its actual endpoint, controller, FIFO, and clock-handling capabilities. Nominal bus speed alone is insufficient. | Audit packet calculations/descriptors and sustain the advertised stream without loss. [TEST-008](test-procedures.md#test-008-usb-path-packet-budget-and-clock-rate-handling) |
 | USB-005 | The implementation shall manage the rate difference between the audio clock and USB host timing without unbounded buffer growth or hidden sample deletion. | Monitor buffer occupancy and sample continuity during extended capture. [TEST-008](test-procedures.md#test-008-usb-path-packet-budget-and-clock-rate-handling), [TEST-006](test-procedures.md#test-006-continuous-recording) |
 | USB-006 | Before an analog hardware buying recommendation, the generated 24-channel/96-kHz/24-valid-bit USB path shall preserve every compared sample and channel identity through the host recording. Validate the checker using independently specified reference vectors and deliberate corruption. Explicitly bound startup/shutdown exclusions; counters, a file checksum or tone frequency alone do not establish integrity. | [TEST-008](test-procedures.md#test-008-usb-path-packet-budget-and-clock-rate-handling) |
-| USB-007 | Characterize throughput, buffer reserve and load limits at the intended USB format against the proposed [stage profile](#generated-usb-stage-test-profile), plus FW-007's storage preflight. Report each boundary separately; no 2× USB capacity or analog-voltage requirement is implied. | [TEST-008](test-procedures.md#test-008-usb-path-packet-budget-and-clock-rate-handling), [TEST-006](test-procedures.md#test-006-continuous-recording) |
+| USB-007 | Characterize throughput, actual buffers and load limits at the intended USB format against the [early-stage profile](#generated-usb-stage-test-profile). FW-007's final SATA/2× preflight applies to later endurance qualification. Report each boundary separately; no 2× USB capacity or analog-voltage requirement is implied. | [TEST-008](test-procedures.md#test-008-usb-path-packet-budget-and-clock-rate-handling), [TEST-006](test-procedures.md#test-006-continuous-recording) |
 
 A generated digital tone can verify the USB/software path. It does not satisfy
 USB-003 or prove analog capture.
 
 ### Generated USB-stage test profile
 
-The following USB-006/007 thresholds are proposed for G1 peer review. They
-are neither measured capacity nor final product guarantees. TEST-008 supplies
-the execution and evidence method; changes to targets belong here.
+This G1-B profile implements the agreed November 6 review changes for the
+**experimental ADC recommendation gate**. It is an engineering risk-reduction
+stage, not production acceptance. All physical results remain NOT_RUN.
 
-| Check | Proposed engineering threshold |
+| Check | Early-stage acceptance / disposition |
 | --- | --- |
-| Format ramp | Known-data runs of at least 60 s each at 1 channel/96 kHz, 8/96 kHz, 24/48 kHz and 24/96 kHz, all with 24 valid bits and three-byte USB subslots. Only the final setting qualifies the target. |
-| Pattern bank | Every TEST-008 pattern family at 24/96k for at least 60 s; every compared value correct, with documented bit/channel coverage. |
-| Nominal / loaded capture | At least 30 min nominal and 60 min with the predefined concurrent board/host/drive workload; all 24 channels compared throughout. |
-| Software rate variation | At least 10 min each at -100/0/+100 ppm using a qualified mechanism; this provisional range must be reviewed against the eventual clock tolerance. |
-| Component processing margin | Board pattern generation and host unpack/checking each achieve at least 2× realtime in separate bounded component benchmarks of at least 60 s after warm-up. This excludes USB and disk performance. |
-| Buffer reserve | At each critical-path service-gap entry, the relevant queued/free reserve covers at least twice the worst measured combined gap for that path. Record instrumentation bounds and queue direction; sampled occupancy alone is insufficient. |
-| Comparison boundaries | Explicit start/end markers, no interior exclusions; proposed maximum unverified startup and shutdown intervals are 2 s each. Timed run durations count only compared data. |
-| Recovery | At least three executions per TEST-008 recovery case, each followed by a fresh 60-s identity check; expected disruption is labeled and does not count as continuous operation. |
+| Native target format | High-speed UAC2, bInterval=1, 24 channels/96 kHz/24 valid bits, three-byte USB subslots; standard Linux driver, no conversion or gain transformation. Verify descriptors, actual packets and source sizing with actual fb_max; at the pinned default 5, at least 936 bytes of packet capacity are needed. Reject unsupported/clamped capacity. |
+| Diagnostic configurations | Start at 24/96k after retaining the known mono bootstrap. Use 1/96k, 8/96k or 24/48k only to isolate a failure; intermediate successes do not qualify the target. |
+| Identity and coverage | At least 60 s identity data, then 60 s total coverage bank: 19 s each of edges/walking/alternating plus 3 s identity at rotation 3. With the rotation-0 identity run, every channel carries changing mixed data in at least one run. Compare every value; retain all channel/bit coverage. Additional tone/sweep/burst families are deferred unless a named uncovered fault requires them. |
+| Nominal / loaded capture | At least 10 min nominal and 15 min under a predefined concurrent board/host/storage workload; compare all channels throughout. Freeze exact workload commands, resource caps and rates before starting; capture unbounded growth, exhaustion, xruns and unexpected USB errors as failures. |
+| Host storage | Explicitly identify an existing host recording volume and actual topology. Free space at least 120% of all planned retained data plus analysis copies/logs. Require successful flushed, complete writes and concurrent recording without storage loss. External SATA, a larger-than-RAM benchmark and a measured 2× physical-write margin are deferred to FW-007/TEST-006; an unmeasured margin stays unqualified. |
+| Processing and buffers | Benchmark the generator on the physical BBB and host checking separately; report CPU, frames/s and actual ALSA period/ring parameters under load. The 2× target is diagnostic at this gate: a miss requires a recorded explanation and an error-free sustained target-format result, rather than automatic rejection. Failure to sustain realtime or observed exhaustion blocks advancement. |
+| Formal reserve and clock variation | Retain the prior formal 2× worst-gap reserve and -100/0/+100-ppm characterization as later integration work. They are deferred, not passed or deleted. A paper ADC/USB clock-domain reconciliation plan is required before an exact ADC recommendation; physical drift/jitter qualification follows representative ADC integration. |
+| Comparison boundaries | Unique start/end markers and exact frame counts, no interior exclusions or silent realignment; at most 2 s per end. Timed durations count compared data only. Missing markers or an unfinished comparison cannot PASS. |
+| Recovery | Three cold starts and three USB reconnects, plus one each of producer stop, host stop and warm restart. Preserve every attempt and follow each with a fresh 60-s identity check. Any unexplained startup failure prevents an unqualified stage PASS; interrupted recordings are never continuous successes. |
+| Application proof | One ordinary Linux recording application exposes and records all 24 target-format channels with a documented, independently checked channel map. Editor sample representation alone does not prove native USB packing or analog quality. |
 
-Load commands/rates, supported clock control, exact pattern definition,
-reference vectors and reliable buffer instrumentation are execution
-prerequisites, not values to invent during a run. Missing prerequisites block
-their subtests. A reviewer may reject or revise these proposals with reasons;
-any failure/inconclusive margin result needs a recorded disposition before
-advancing. No 24-hour run is required to complete this early USB-only gate;
-the full-device 24-hour target remains ADC-007.
+Hardware readiness, independently supervised capture/checking, validated USB
+error observation and frozen workload definitions remain execution
+prerequisites. G1 has received an external review; its unresolved execution
+blockers keep it on HOLD. The owner's instruction to implement agreed findings
+authorizes this revision; it does not manufacture missing test evidence.
+
+Later representative-bank/full-device tests retain the 30-minute/one-hour,
+formal buffer/clock characterization and 24-hour targets where applicable.
+No 24-hour run, production PCB or release qualification is required for this
+early gate. Keep all ADC-003–007, physical timing and product-release limits
+unpassed until measured on their actual paths.
+
+### Deferred integration profile
+
+The following prior engineering goals remain for representative bridge/ADC
+integration, to be reviewed against the selected hardware and real tolerances.
+Deferral from the early purchase gate does not satisfy them:
+
+| Later check | Retained goal |
+| --- | --- |
+| Nominal / loaded engineering run | 30 min nominal and 60 min with a predefined board/host/drive load, before the full-device 24-hour acceptance run. |
+| Processing margin | Separately measure actual board generation/bridge work and host checking for at least 60 s elapsed after warm-up; proposed goal at least 2× realtime, including owned conversion/copies. |
+| Formal buffer reserve | At every critical-path service-gap entry, the appropriate queued/free reserve covers at least twice the worst measured combined gap for that path. Convert frames/bytes to time at the measured rate; sampled occupancy alone cannot prove this continuous bound. |
+| Clock variation | Retain the proposed -100/0/+100-ppm range for at least 10 min each, subject to real oscillator/control limits. Qualified software simulation and physical ADC drift/jitter remain separate measurements. |
+
+FW-007 retains the later external-SATA free-space and 2× flushed physical-write
+preflight. Measured worst gaps and short endurance runs are observations,
+not guaranteed future maxima or a full-product reliability claim.
 
 ## Provisional capture performance targets
 
@@ -115,9 +142,10 @@ or cost justify a change.
 ### Recommended channel
 
 Use one XLR/6.35-mm combo receptacle and selectable MIC, LINE and INSTRUMENT
-modes per channel. Plan this capability for all 24 channels as the working
-product scope. One socket accepts one plug and records one mono channel at a
-time. A balanced TRS cable uses three contacts for one channel, not stereo.
+modes per channel. Plan this capability for all 24 channels as the provisional
+working product scope; validate the customer need and complete cost before production
+analog design. This review does not reduce the requested input capability.
+One socket accepts one plug and records one mono channel at a time. A balanced TRS cable uses three contacts for one channel, not stereo.
 
 | Mode | Intended source and connection | Required input circuitry |
 | --- | --- | --- |
@@ -227,7 +255,7 @@ sequence still applies; no preamp purchase is necessary for this milestone.
 | ANA-001 | Every analog input shall have a documented connector, pinout, signal type, impedance, maximum level, common-mode/bias requirement, and ground reference. | Review the input specification and measure the assembled circuit. [TEST-007](test-procedures.md#test-007-input-compatibility-and-front-end-controls) |
 | ANA-002 | Input conditioning shall supply the coupling, bias, attenuation, filtering, and protection required by the selected ADC and source. | Review the ADC reference circuit and verify levels and clipping on hardware. [TEST-007](test-procedures.md#test-007-input-compatibility-and-front-end-controls), [TEST-009](test-procedures.md#test-009-board-interface-clocks-power-and-capture-dma) |
 | ANA-003 | Mic, line, instrument, and digital sources shall not be treated as electrically interchangeable. Phantom power shall not be present on the initial line-input path. | Inspect source/interface specifications and measure input voltages. [TEST-007](test-procedures.md#test-007-input-compatibility-and-front-end-controls) |
-| ANA-004 | The production input design shall provide MIC, LINE and INSTRUMENT modes for the requested microphone, balanced/unbalanced line and raw-guitar coverage. Use the proposed [input targets](#analog-input-requirements) to drive analog circuit and ADC selection. | Review per-mode impedance, gain, headroom, connector wiring and measured performance; distinguish proposed limits from demonstrated results. [TEST-007](test-procedures.md#test-007-input-compatibility-and-front-end-controls) |
+| ANA-004 | The production input design shall provide MIC, LINE and INSTRUMENT modes for the requested microphone, balanced/unbalanced line and raw-guitar coverage. Use the proposed [input targets](#analog-input-requirements) to drive analog circuit and ADC selection; the all-24-channel mode allocation remains provisional pending PRD-005 customer/cost validation. | Review per-mode impedance, gain, headroom, connector wiring and measured performance; distinguish proposed limits from demonstrated results. [TEST-007](test-procedures.md#test-007-input-compatibility-and-front-end-controls) |
 | ELE-001 | Digital connections shall respect BeagleBone and ADC I/O voltage limits, including startup and unpowered conditions. | Review rail sequencing and measure interface levels. [TEST-009](test-procedures.md#test-009-board-interface-clocks-power-and-capture-dma) |
 | ELE-002 | The design shall document power consumption, supply rails, grounding, decoupling, and the supported cable/power arrangement. | Measure the prototype and review the schematic and BOM. [TEST-009](test-procedures.md#test-009-board-interface-clocks-power-and-capture-dma) |
 | ELE-003 | Shared header functions, including HDMI/eMMC conflicts, shall be resolved for the exact board and device-tree configuration before wiring McASP. | Compare schematic, pinmux, active drivers, and measured pins. [TEST-009](test-procedures.md#test-009-board-interface-clocks-power-and-capture-dma) |
@@ -245,20 +273,26 @@ they are not existing test results or final product performance claims.
 
 ### Current review gate: G1
 
-Before further BeagleBone configuration/bench experiments or an equipment
-buying recommendation, obtain an external review of the current USB-stage
-requirements and TEST-008, TEST-010 and TEST-009's paper-interface portion.
-Use the [focused review addendum](reviews/usb-stage-review.md) with this file
-and the single test-procedures document. Record the reviewed revisions,
-findings, resolutions and the owner's acceptance of the review disposition.
-Unresolved blocking findings keep G1 on HOLD. Preparing documents and host-only
-test fixtures does not close this gate or authorize a purchase.
+The November 6 external review returned REVISE BEFORE EXPERIMENTS. Its
+[finding-by-finding disposition](reviews/g1-disposition-2026-11-06.md) records
+agreements, qualifications and implementation status. The owner requested
+scrutiny and implementation of agreed findings; that instruction supplies
+acceptance for the documented plan edits without a second permission stop.
 
-After G1 closes, complete the generated-channel tests below. Their USB-stage
-PASS and the paper ADC/interface review permit a concrete bench-equipment
-recommendation; purchase remains a separate owner decision. A review is not
-a substitute for those physical tests. Any failed/inconclusive margin target
-needs an explicit review disposition before advancing.
+G1 remains HOLD for unresolved execution prerequisites: qualified capture
+supervision/readiness, observable USB errors and a frozen load/evidence plan.
+Preparing host fixtures or correcting the plan does not pass these hardware
+prerequisites. Before a target-format acceptance run, record their evidence
+and exact reviewed revisions. Bounded readiness qualification under tasks
+006/007 may inspect the live board and exercise the preserved mono setup to validate the
+observer/runner under a recorded protocol and recovery path. Readiness is a
+bounded first phase; target-format acceptance depends on its evidence. It does
+not constitute a physical USB PASS.
+
+After G1 closes, perform the early-stage profile above. A qualified USB-stage
+PASS plus TEST-009's paper ADC/interface review permit a concrete experimental
+ADC recommendation. Paper McASP/ADC compatibility blocks that recommendation,
+not the generated USB experiment. Purchasing remains a separate owner decision.
 
 ### Execution sequence after review
 
@@ -268,8 +302,9 @@ needs an explicit review disposition before advancing.
    conflicts, clock ownership/timing budget, serial format, pinned-kernel
    channel/DMA constraints and ADC electrical compatibility. After the first
    USB tone, test a generated 24-channel USB stream at the target format,
-   including the checked patterns, staged runs and resource margins in
-   TEST-008. All 24 generated channels must be active together. This stage
+   including the early-stage checked patterns, nominal/load/recovery runs
+   and resource observations in TEST-008. All 24 generated channels must be
+   active together. This stage
    does not require buying 24 analog front ends or precision audio instruments.
    Source review is not sustained-capture validation. Prefer a representative
    multichannel converter bank when qualified test hardware is available;
@@ -359,7 +394,10 @@ or a successful file upload alone does not prove the updated program runs.
   120% of calculated payload and sustained flushed write throughput at least
   twice the stored audio rate under concurrent capture/checking. Actual
   uninterrupted recording remains the acceptance evidence; SATA is not a
-  new interface requirement on the BeagleBone.
+  new interface requirement on the BeagleBone. This requirement applies to
+  later endurance qualification. TEST-008's experimental ADC gate may use an
+  explicitly identified existing host volume under its separate preflight;
+  that result does not pass this final SATA/2× requirement.
   Verification: [TEST-006](test-procedures.md#test-006-continuous-recording).
 
 - FW-008: Initial card installation shall reuse the completed image and run
@@ -387,6 +425,15 @@ or a successful file upload alone does not prove the updated program runs.
   manufacturing tests, enclosure/connector requirements, and applicable market
   compliance requirements before product release. No certification or license
   choice is implied by repository visibility.
+  Verification: [TEST-013](test-procedures.md#test-013-product-evidence-and-release-gates).
+
+- PRD-005: Before production analog/PCB commitment, record the intended
+  customer/use case, justified input-mode mix and 96-kHz/Linux scope,
+  differentiation, target selling price/volume and complete manufacturing,
+  production-test/calibration, fulfillment, return and support economics.
+  Unknown commercial assumptions remain explicit; do not replace the requested
+  capabilities without a separate product decision. This gate does not block
+  a bounded USB experiment or one qualified experimental ADC bank.
   Verification: [TEST-013](test-procedures.md#test-013-product-evidence-and-release-gates).
 
 ## Compatibility stretch goal
